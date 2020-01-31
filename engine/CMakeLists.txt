@@ -26,45 +26,51 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-find_package( OpenGL REQUIRED )
-
-if( UNIX )
-  # On Unix-like systems, shared libraries can use the soname system.
-  set(GLFW_LIB_NAME glfw)
-else()
-  set(GLFW_LIB_NAME glfw3)
-endif()
-
-# Filter out warnings that cause problems with GLFW.
-if( WARNINGS_AS_ERRORS AND (USING_GNU_CXX OR USING_CLANG_CXX))
-  string( REPLACE "-Wdeclaration-after-statement" "" filtered_c_flags ${CMAKE_C_FLAGS} )
-  string( REPLACE "-Wsign-compare" "" filtered_c_flags ${filtered_c_flags} )
-  push_variable( CMAKE_C_FLAGS "${filtered_c_flags} -Wno-format-truncation -Wno-deprecated" )
-endif()
-add_subdirectory( GLFW )
-set_property( TARGET glfw PROPERTY C_STANDARD 99 )
-if( WARNINGS_AS_ERRORS AND (USING_GNU_CXX OR USING_CLANG_CXX))
-  pop_variable( CMAKE_C_FLAGS )
-endif()
-
-add_subdirectory( imgui )
-
-# Ajouter glm aux librairies utilisees
-add_subdirectory( glm )
-
-add_library( glad SHARED
-  KHR/khrplatform.h
-  glad/glad.c
-  glad/glad.h
+# Ajouter a la main un dossier a la liste des include directories pour
+# chaque dossier ajoute dans l'arbre systeme
+include_directories(
+  "${CMAKE_CURRENT_SOURCE_DIR}"
 )
-target_compile_definitions( glad
-  PRIVATE GLAD_GLAPI_EXPORT_BUILD
-  PUBLIC  GLAD_GLAPI_EXPORT )
-target_include_directories( glad PUBLIC . )
-target_link_libraries( glad PUBLIC ${OPENGL_LIBRARIES} )
 
+set(fichiers_source ${fichiers_source})
 
-# Set IDE folders for targets
-set_property( TARGET glad PROPERTY FOLDER ${OPTIX_IDE_FOLDER} )
-set_property( TARGET glfw PROPERTY FOLDER ${OPTIX_IDE_FOLDER} )
-set_property( TARGET imgui PROPERTY FOLDER ${OPTIX_IDE_FOLDER} )
+# Recupere tous les fichiers d'entete .h du projet
+file(GLOB_RECURSE fichiers_h
+  "*.h"
+)
+
+foreach(fichier ${fichiers_h})
+  list(APPEND fichiers_source ${fichier})
+endforeach()
+
+# Recupere tous les fichiers source .cpp du projet
+file(GLOB_RECURSE fichiers_cpp
+"*.cpp"
+)
+
+foreach(fichier ${fichiers_cpp})
+  list(APPEND fichiers_source ${fichier})
+endforeach()
+
+# Recupere tous les fichiers CUDA .cu du projet
+file(GLOB_RECURSE fichiers_cuda
+  "*.cu"
+)
+
+foreach(fichier ${fichiers_cuda})
+   list(APPEND fichiers_source ${fichier})
+endforeach()
+
+message("Fichiers trouves: ")
+foreach(fichier ${fichiers_source})
+   message(${fichier})
+endforeach()
+
+OPTIX_add_sample_executable(engine target_name
+  ${fichiers_source}
+  OPTIONS -rdc true
+)
+
+target_link_libraries( ${target_name}
+  ${CUDA_LIBRARIES}
+)
