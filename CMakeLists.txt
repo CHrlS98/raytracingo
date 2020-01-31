@@ -79,7 +79,7 @@
 
 # This sets up the name of our project.  For our purposes the main thing this controls is
 # the name of the VS solution file.
-project(OptiX-Samples)
+project(RayTracinGO)
 
 # This enforces a particular version of CMake that we require to process the script files
 # properly.
@@ -339,31 +339,31 @@ function(OPTIX_add_sample_executable target_name_base target_name_var)
     sutil_7_sdk
     )
 
-  set_target_properties( ${target_name} PROPERTIES
+    set_target_properties( ${target_name} PROPERTIES
     COMPILE_DEFINITIONS OPTIX_SAMPLE_NAME_DEFINE=${target_name})
-
-  if( UNIX AND NOT APPLE )
+    
+    if( UNIX AND NOT APPLE )
     # Force using RPATH instead of RUNPATH on Debian
     target_link_libraries( ${target_name} "-Wl,--disable-new-dtags" )
-  endif()
-
-  if(USING_GNU_CXX)
+    endif()
+    
+    if(USING_GNU_CXX)
     target_link_libraries( ${target_name} m ) # Explicitly link against math library (C samples don't do that by default)
-  endif()
-endfunction()
-
-#########################################################
-#  List of samples found in subdirectories.
-#
-# If you wish to start your own sample, you can copy one of the sample's directories.
-# Just make sure you rename all the occurances of the sample's name in the C code as well
-# and the CMakeLists.txt file.
-add_subdirectory(optixSphere)
-
-# Our sutil library.  The rules to build it are found in the subdirectory.
-add_subdirectory(sutil)
-# Third-party support libraries.
-add_subdirectory(support)
+    endif()
+    endfunction()
+    
+    #########################################################
+    #  List of samples found in subdirectories.
+    #
+    # If you wish to start your own sample, you can copy one of the sample's directories.
+    # Just make sure you rename all the occurances of the sample's name in the C code as well
+    # and the CMakeLists.txt file.
+    add_subdirectory(engine)
+    
+    # Our sutil library.  The rules to build it are found in the subdirectory.
+    add_subdirectory(sutil)
+    # Third-party support libraries.
+    add_subdirectory(support)
 
 #################################################################
 
