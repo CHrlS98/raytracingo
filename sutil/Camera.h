@@ -47,6 +47,8 @@ public:
     {
     }
 
+    SUTILAPI void ConfigureCamera(const unsigned int width, const unsigned int height);
+
     SUTILAPI float3 direction() const { return normalize(m_lookat - m_eye); }
     SUTILAPI void setDirection(const float3& dir) { m_lookat = m_eye + length(m_lookat - m_eye) * dir; }
 
