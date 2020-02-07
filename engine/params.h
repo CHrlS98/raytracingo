@@ -28,32 +28,71 @@
 
 #include <stdint.h>
 
-
-struct Params
+struct BasicMaterial
 {
-    uchar4*                image;
-    uint32_t               image_width;
-    uint32_t               image_height;
-    int32_t                origin_x;
-    int32_t                origin_y;
-    OptixTraversableHandle handle;
+    /// Couleur ambiante
+    float3 ka;
+    
+    /// Couleur diffuse
+    float3 kd;
+    
+    /// Couleur speculaire
+    float3 ks;
+    
+    /// Coefficient de reflexion speculaire
+    float alpha;
 };
 
+struct SphereData
+{
+    float radius;
+    float3 position;
+};
 
-struct RayGenData
+struct BasicLight
+{
+    /// Position
+    float3 position;
+    
+    /// Couleur de l'eclairage
+    float3 color;
+};
+
+struct CameraData
 {
     float3 cam_eye;
     float3 camera_u, camera_v, camera_w;
 };
-
 
 struct MissData
 {
     float r, g, b;
 };
 
-
 struct HitGroupData
 {
-    float radius;
+    /// Representation geometrique de l'objet
+    union
+    {
+        SphereData sphere;
+    } geometry;
+
+    /// Materiel de l'objet a representer
+    union
+    {
+        BasicMaterial basicMaterial;
+    } material;
+};
+
+struct Params
+{
+    uchar4* image;
+    uint32_t image_width;
+    uint32_t image_height;
+    int32_t origin_x;
+    int32_t origin_y;
+
+    BasicLight light;
+    float3 ambientLight;
+    OptixTraversableHandle handle;
 };

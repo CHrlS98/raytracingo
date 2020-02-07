@@ -26,7 +26,7 @@ struct ShaderBindingTableRecord
 };
 
 // These Data are defined in the params.h
-typedef ShaderBindingTableRecord<RayGenData> RayGenerationSbtRecord;
+typedef ShaderBindingTableRecord<CameraData> CameraSbtRecord;
 typedef ShaderBindingTableRecord<MissData> MissSbtRecord;
 typedef ShaderBindingTableRecord<HitGroupData> HitGroupSbtRecord;
 
@@ -60,9 +60,9 @@ private:
     std::vector<OptixProgramGroup> m_hitGroupPrograms;
     OptixShaderBindingTable m_shaderBindingTable;
 
+    std::shared_ptr<sutil::CUDAOutputBuffer<uchar4>> m_outputBuffer;
     CUdeviceptr m_deviceGasOutputBuffer;
     OptixTraversableHandle m_traversableHandle;
-    std::shared_ptr<sutil::CUDAOutputBuffer<uchar4>> m_outputBuffer;
 
     void InitOptix();
     void CreateContext();

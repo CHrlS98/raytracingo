@@ -28,7 +28,7 @@
 
 #include <optix_function_table_definition.h>
 
-#include "renderer.h"
+#include <renderer.h>
 
 #include <iomanip>
 #include <iostream>
