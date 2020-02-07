@@ -6,6 +6,7 @@ Shape::Shape()
 }
 
 Shape::Shape(const glm::vec3& worldPosition)
+    : m_type(ShapeType::None)
 {
     m_worldPosition = worldPosition;
     m_boundingBox = {};

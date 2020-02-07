@@ -29,6 +29,7 @@
 #include <optix_function_table_definition.h>
 
 #include <renderer.h>
+#include <scene.h>
 
 #include <iomanip>
 #include <iostream>
@@ -48,6 +49,7 @@ int main( int argc, char* argv[] )
     std::string outfile;
     int width  = 1024;
     int height =  768;
+    Scene scene = Scene();
 
     for( int i = 1; i < argc; ++i )
     {
