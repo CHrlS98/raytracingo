@@ -10,6 +10,9 @@
 #include <iostream>
 #include <iomanip>
 
+namespace engine
+{
+
 static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*callbackdata */)
 {
     std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
@@ -548,3 +551,4 @@ void Renderer::CleanUp()
     OPTIX_CHECK(optixModuleDestroy(m_module));
     OPTIX_CHECK(optixDeviceContextDestroy(m_optixContext));
 }
+} // namespace engine

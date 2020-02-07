@@ -32,6 +32,8 @@
 
 #include <sutil/vec_math.h>
 
+namespace engine
+{
 extern "C" {
     __constant__ Params params;
 }
@@ -201,3 +203,4 @@ extern "C" __global__ void __closesthit__ch()
     float3 color = compAmbiante + compDiffuse + compSpeculaire;
     setPayload(color);
 }
+} // namespace engine

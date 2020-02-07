@@ -81,7 +81,7 @@ int main( int argc, char* argv[] )
 
     try
     {
-        Renderer renderer = Renderer(width, height);
+        engine::Renderer renderer = engine::Renderer(width, height);
         renderer.Launch();
         renderer.Display(outfile);
 
