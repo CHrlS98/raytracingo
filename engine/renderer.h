@@ -9,6 +9,8 @@
 
 #include "params.h"
 
+namespace engine
+{
 enum LogCallbackLevel
 {
     Disable = 0,    // Setting the callback level will disable all messages.The callback function will not be called in this case
@@ -81,3 +83,4 @@ private:
 
     void CleanUp();
 };
+} // namespace engine

@@ -28,17 +28,19 @@
 
 #include <stdint.h>
 
+namespace engine
+{
 struct BasicMaterial
 {
     /// Couleur ambiante
     float3 ka;
-    
+
     /// Couleur diffuse
     float3 kd;
-    
+
     /// Couleur speculaire
     float3 ks;
-    
+
     /// Coefficient de reflexion speculaire
     float alpha;
 };
@@ -53,7 +55,7 @@ struct BasicLight
 {
     /// Position
     float3 position;
-    
+
     /// Couleur de l'eclairage
     float3 color;
 };
@@ -96,3 +98,4 @@ struct Params
     float3 ambientLight;
     OptixTraversableHandle handle;
 };
+} // namespace engine
