@@ -7,6 +7,8 @@
 
 #include <sutil/CUDAOutputBuffer.h>
 
+#include <scene.h>
+
 #include "params.h"
 
 namespace engine
@@ -35,7 +37,7 @@ typedef ShaderBindingTableRecord<HitGroupData> HitGroupSbtRecord;
 class Renderer
 {
 public:
-    Renderer(const int width, const int height);
+    Renderer(const Scene& scene, const int width, const int height);
     ~Renderer();
 
     void Launch();
@@ -57,9 +59,7 @@ private:
     CUstream  m_cudaStream;
     cudaDeviceProp m_cudaDeviceProperties;
 
-    std::vector<OptixProgramGroup> m_rayGenerationPrograms;
-    std::vector<OptixProgramGroup> m_missPrograms;
-    std::vector<OptixProgramGroup> m_hitGroupPrograms;
+    std::vector<OptixProgramGroup> m_programs;
     OptixShaderBindingTable m_shaderBindingTable;
 
     std::shared_ptr<sutil::CUDAOutputBuffer<uchar4>> m_outputBuffer;
@@ -73,13 +73,13 @@ private:
     void CreateMissPrograms();
     void CreateHitGroupPrograms();
 
-    void BuildAccelerationStructure();
+    void BuildAccelerationStructure(const Scene& scene);
     void CreatePipeline();
-    void BuildShaderBindingTable();
+    void BuildShaderBindingTable(const Scene& scene);
 
-    void BuildRayGenerationRecords();
-    void BuildMissRecords();
-    void BuildHitGroupRecords();
+    void BuildRayGenerationRecords(int& sbtIndex);
+    void BuildMissRecords(int& sbtIndex);
+    void BuildHitGroupRecords(int& sbtIndex, const Scene& scene);
 
     void CleanUp();
 };

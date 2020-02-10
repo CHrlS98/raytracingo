@@ -61,9 +61,9 @@ static __forceinline__ __device__ void trace(
         0.0f,                // rayTime
         OptixVisibilityMask(1),
         OPTIX_RAY_FLAG_NONE,
-        0,                   // SBT offset
-        0,                   // SBT stride
-        0,                   // missSBTIndex
+        RAY_TYPE_RADIANCE,   // SBT offset
+        RAY_TYPE_COUNT,      // SBT stride
+        RAY_TYPE_RADIANCE,   // missSBTIndex
         p0, p1, p2);
     prd->x = int_as_float(p0);
     prd->y = int_as_float(p1);
@@ -136,7 +136,7 @@ extern "C" __global__ void __intersection__is()
 
     const float3 center = sphere.position;
     const float  radius = sphere.radius;
-    const float3 l = normalize(dir);
+const float3 l = normalize(dir);
 
     // -b +/- sqrt(b^2 -c)
     const float b = dot(l, (o - center));

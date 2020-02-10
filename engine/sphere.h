@@ -4,13 +4,16 @@
 
 #include <shape.h>
 
+namespace engine
+{
+
 class Sphere : public Shape
 {
 public:
     Sphere();
     Sphere(const glm::vec3& worldPosition, const float radius);
+    ~Sphere() = default;
 
-    inline float GetRadius() { return m_radius; }
     inline float GetRadius() const { return m_radius; }
 
 private:
@@ -18,3 +21,5 @@ private:
 
     typedef Shape super;
 };
+
+} // namespace engine

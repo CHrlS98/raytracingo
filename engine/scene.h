@@ -1,16 +1,25 @@
 #pragma once
 
 #include <vector>
-#include <shape.h>
+#include <memory>
+
+namespace engine 
+{
+
+constexpr unsigned int NB_OBJ = 3;
+
+class Shape;
 
 class Scene
 {
 public:
     Scene();
+    ~Scene() = default;
 
-    inline std::vector<Shape> GetShapes() const { return m_shapes; }
-    inline size_t GetShapesCount() const { return m_shapes.size(); }
+    inline std::vector<std::shared_ptr<Shape>> GetShapes() const { return m_shapes; }
 
 private:
-    std::vector<Shape> m_shapes;
+    std::vector<std::shared_ptr<Shape>> m_shapes;
 };
+
+} // namespace engine
