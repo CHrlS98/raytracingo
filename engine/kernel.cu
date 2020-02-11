@@ -136,7 +136,7 @@ extern "C" __global__ void __intersection__is()
 
     const float3 center = sphere.position;
     const float  radius = sphere.radius;
-const float3 l = normalize(dir);
+    const float3 l = normalize(dir);
 
     // -b +/- sqrt(b^2 -c)
     const float b = dot(l, (o - center));

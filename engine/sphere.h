@@ -7,7 +7,7 @@
 namespace engine
 {
 
-class Sphere : public Shape
+class Sphere : public IShape
 {
 public:
     Sphere();
@@ -15,11 +15,12 @@ public:
     ~Sphere() = default;
 
     inline float GetRadius() const { return m_radius; }
+    ShapeType GetShapeType() const override { return m_type; }
+    glm::vec3 GetWorldPosition() const override { return m_worldPosition; }
+    OptixAabb GetAabb() const override { return m_boundingBox; }
 
 private:
     float m_radius;
-
-    typedef Shape super;
 };
 
 } // namespace engine

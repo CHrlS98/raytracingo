@@ -265,13 +265,11 @@ void Renderer::BuildAccelerationStructure(const Scene& scene)
     CUdeviceptr deviceAaabbBuffer;
 
     int i = 0;
-    std::vector<std::shared_ptr<Shape>> shapes = scene.GetShapes();
-    for (std::shared_ptr<Shape> shape : shapes)
+    std::vector<std::shared_ptr<IShape>> shapes = scene.GetShapes();
+    for (std::shared_ptr<IShape> shape : shapes)
     {
         switch (shape->GetShapeType())
         {
-        case ShapeType::None:
-            break;
         case ShapeType::SphereType:
         {
             std::shared_ptr<Sphere> sphere = std::dynamic_pointer_cast<Sphere>(shape);
@@ -479,19 +477,17 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex, const Scene& scene)
     const size_t count_records = NB_OBJ; // RAY_TYPE_COUNT * NB_OBJ;
     HitGroupSbtRecord hitgroupRecords[count_records];
     int i = 0;
-    std::vector<std::shared_ptr<Shape>> shapes = scene.GetShapes();
-    for (std::shared_ptr<Shape> shape : shapes)
+    std::vector<std::shared_ptr<IShape>> shapes = scene.GetShapes();
+    for (std::shared_ptr<IShape> shape : shapes)
     {
         switch (shape->GetShapeType())
         {
-        case ShapeType::None:
-            break;
         case ShapeType::SphereType:
         {
             std::shared_ptr<Sphere> sphere = std::dynamic_pointer_cast<Sphere>(shape);
             if (sphere)
             {
-                glm::vec3 pos = sphere->GetWorldPosition();
+                const glm::vec3& pos = sphere->GetWorldPosition();
                 hitgroupRecords[i].data.geometry.sphere.radius = sphere->GetRadius();
                 hitgroupRecords[i].data.geometry.sphere.position = { pos.x, pos.y, pos.z };
                 hitgroupRecords[i].data.material.basicMaterial.ka = { 1.0f, 0.0f, 1.0f };

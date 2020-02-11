@@ -9,20 +9,18 @@ namespace engine
 
 enum ShapeType
 {
-    None,
     SphereType
 };
 
-class Shape
+class IShape
 {
 public:
-    Shape();
-    Shape(const glm::vec3& worldPosition);
-    virtual ~Shape() {};
+    IShape() = default;
+    virtual ~IShape() {};
 
-    inline ShapeType GetShapeType() const { return m_type; }
-    inline glm::vec3 GetWorldPosition() const { return m_worldPosition; }
-    inline OptixAabb GetAabb() const { return m_boundingBox; }
+    virtual ShapeType GetShapeType() const = 0;
+    virtual glm::vec3 GetWorldPosition() const = 0;
+    virtual OptixAabb GetAabb() const = 0;
 
 protected:
     ShapeType m_type;
