@@ -29,6 +29,7 @@
 #include <optix_function_table_definition.h>
 
 #include <renderer.h>
+#include <scene.h>
 
 #include <iomanip>
 #include <iostream>
@@ -48,6 +49,7 @@ int main( int argc, char* argv[] )
     std::string outfile;
     int width  = 1024;
     int height =  768;
+    engine::Scene scene = engine::Scene();
 
     for( int i = 1; i < argc; ++i )
     {
@@ -81,7 +83,7 @@ int main( int argc, char* argv[] )
 
     try
     {
-        engine::Renderer renderer = engine::Renderer(width, height);
+        engine::Renderer renderer = engine::Renderer(scene, width, height);
         renderer.Launch();
         renderer.Display(outfile);
 

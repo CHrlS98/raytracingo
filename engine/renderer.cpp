@@ -7,8 +7,11 @@
 
 #include <cuda_runtime.h>
 
+#include <sphere.h>
+
 #include <iostream>
 #include <iomanip>
+#include <memory>
 
 namespace engine
 {
@@ -18,7 +21,7 @@ static void context_log_cb(unsigned int level, const char* tag, const char* mess
     std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
 }
 
-Renderer::Renderer(const int width, const int height)
+Renderer::Renderer(const Scene& scene, const int width, const int height)
     : m_windowWidth(width)
     , m_windowHeight(height)
     , m_optixContext(nullptr)
@@ -30,9 +33,7 @@ Renderer::Renderer(const int width, const int height)
     , m_cudaContext(nullptr)
     , m_cudaStream(nullptr)
     , m_cudaDeviceProperties({})
-    , m_rayGenerationPrograms()
-    , m_missPrograms()
-    , m_hitGroupPrograms()
+    , m_programs()
     , m_shaderBindingTable({})
     , m_outputBuffer(nullptr)
     , m_deviceGasOutputBuffer(0)
@@ -48,15 +49,13 @@ Renderer::Renderer(const int width, const int height)
 
     InitOptix();
     CreateContext();
+    BuildAccelerationStructure(scene);
     CreateModule();
     CreateRayGenerationPrograms();
     CreateMissPrograms();
     CreateHitGroupPrograms();
-
-    BuildAccelerationStructure();
-
     CreatePipeline();
-    BuildShaderBindingTable();
+    BuildShaderBindingTable(scene);
 }
 
 Renderer::~Renderer()
@@ -131,7 +130,7 @@ void Renderer::CreateModule()
     m_pipelineCompileOptions.exceptionFlags = OptixExceptionFlags::OPTIX_EXCEPTION_FLAG_NONE;  // TODO: should be OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 
     // This is the name of the param struct variable in our device code
-    m_pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";                      // "optixLaunchParams" ??
+    m_pipelineCompileOptions.pipelineLaunchParamsVariableName = "params";
 
     char log[2048];
     size_t sizeof_log = sizeof(log);
@@ -157,7 +156,7 @@ void Renderer::CreateRayGenerationPrograms()
     std::cout << "RayTracinGO: creating the Ray Generation programs ..." << std::endl;
 
     // Create ray generation group
-    m_rayGenerationPrograms.resize(1); // or reserve ?
+    OptixProgramGroup rayGenerationProgram;
     OptixProgramGroupOptions rayGenerationOptions = {}; // No options yet
     OptixProgramGroupDesc rayGenerationDesc = {};
 
@@ -177,8 +176,9 @@ void Renderer::CreateRayGenerationPrograms()
         &rayGenerationOptions,
         log,
         &sizeof_log,
-        &m_rayGenerationPrograms[0]
+        &rayGenerationProgram
     ));
+    m_programs.push_back(rayGenerationProgram);
 }
 
 void Renderer::CreateMissPrograms()
@@ -186,9 +186,8 @@ void Renderer::CreateMissPrograms()
     std::cout << "RayTracinGO: creating the Miss programs ..." << std::endl;
 
     // Create miss program group
-    m_missPrograms.resize(1); // or reserve ?    
+    OptixProgramGroup missProgram;
     OptixProgramGroupOptions missOptions = {}; // No options yet
-
     OptixProgramGroupDesc missDesc = {};
     missDesc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_MISS;
 
@@ -206,8 +205,9 @@ void Renderer::CreateMissPrograms()
         &missOptions,
         log,
         &sizeof_log,
-        &m_missPrograms[0]
+        &missProgram
     ));
+    m_programs.push_back(missProgram);
 }
 
 void Renderer::CreateHitGroupPrograms()
@@ -215,39 +215,43 @@ void Renderer::CreateHitGroupPrograms()
     std::cout << "RayTracinGO: creating HitGroup programs ..." << std::endl;
 
     // Create hit group
-    m_hitGroupPrograms.resize(1); // or reserve ?
-    OptixProgramGroupOptions hitGroupOptions = {}; // No options yet
+    for (int i = 0; i < NB_OBJ; i++)
+    {
+        OptixProgramGroup hitGroupProgram;
+        OptixProgramGroupOptions hitGroupOptions = {}; // No options yet
+        OptixProgramGroupDesc hitGroupDesc = {};
+        hitGroupDesc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
-    OptixProgramGroupDesc hitGroupDesc = {};
-    hitGroupDesc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        // Closest hit device settings
+        hitGroupDesc.hitgroup.moduleCH = m_module;
+        hitGroupDesc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
 
-    // Closest hit device settings
-    hitGroupDesc.hitgroup.moduleCH = m_module;
-    hitGroupDesc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
+        // Any hit device settings
+        hitGroupDesc.hitgroup.moduleAH = nullptr;
+        hitGroupDesc.hitgroup.entryFunctionNameAH = nullptr;
 
-    // Any hit device settings
-    hitGroupDesc.hitgroup.moduleAH = nullptr;
-    hitGroupDesc.hitgroup.entryFunctionNameAH = nullptr;
+        // Intersection device settings
+        hitGroupDesc.hitgroup.moduleIS = m_module;
+        hitGroupDesc.hitgroup.entryFunctionNameIS = "__intersection__is";
 
-    // Intersection device settings
-    hitGroupDesc.hitgroup.moduleIS = m_module;
-    hitGroupDesc.hitgroup.entryFunctionNameIS = "__intersection__is";
 
-    char log[2048];
-    size_t sizeof_log = sizeof(log);
-    
-    OPTIX_CHECK_LOG(optixProgramGroupCreate(
-        m_optixContext,
-        &hitGroupDesc,
-        1,   // num program groups
-        &hitGroupOptions,
-        log,
-        &sizeof_log,
-        &m_hitGroupPrograms[0]
-    ));
+        char log[2048];
+        size_t sizeof_log = sizeof(log);
+
+        OPTIX_CHECK_LOG(optixProgramGroupCreate(
+            m_optixContext,
+            &hitGroupDesc,
+            1,   // num program groups
+            &hitGroupOptions,
+            log,
+            &sizeof_log,
+            &hitGroupProgram
+        ));
+        m_programs.push_back(hitGroupProgram);
+    }
 }
 
-void Renderer::BuildAccelerationStructure()
+void Renderer::BuildAccelerationStructure(const Scene& scene)
 {
     // Specify options for the build
     OptixAccelBuildOptions accelOptions = {};
@@ -257,13 +261,34 @@ void Renderer::BuildAccelerationStructure()
     // AABB build input
     // OptixAabb(minX, minY, minZ, maxX, maxY, maxZ)
     // axis-aligned bounding box
-    OptixAabb   aabb = { -1.5f, -1.5f, -1.5f, 1.5f, 1.5f, 1.5f };
+    OptixAabb   aabb[NB_OBJ];
     CUdeviceptr deviceAaabbBuffer;
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceAaabbBuffer), sizeof(OptixAabb)));
+
+    int i = 0;
+    std::vector<std::shared_ptr<IShape>> shapes = scene.GetShapes();
+    for (std::shared_ptr<IShape> shape : shapes)
+    {
+        switch (shape->GetShapeType())
+        {
+        case ShapeType::SphereType:
+        {
+            std::shared_ptr<Sphere> sphere = std::dynamic_pointer_cast<Sphere>(shape);
+            if (sphere)
+            {
+                aabb[i++] = sphere->GetAabb();
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceAaabbBuffer), NB_OBJ * sizeof(OptixAabb)));
     CUDA_CHECK(cudaMemcpy(
         reinterpret_cast<void*>(deviceAaabbBuffer),
         &aabb,
-        sizeof(OptixAabb),
+        NB_OBJ * sizeof(OptixAabb),
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
 
@@ -274,11 +299,23 @@ void Renderer::BuildAccelerationStructure()
 
     aabbInput.type = OptixBuildInputType::OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
     aabbInput.aabbArray.aabbBuffers = &deviceAaabbBuffer;
-    aabbInput.aabbArray.numPrimitives = 1;
+    aabbInput.aabbArray.numPrimitives = NB_OBJ;
 
-    uint32_t aabbInputFlags[1] = { OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_NONE };
+    uint32_t aabbInputFlags[NB_OBJ] = { OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_NONE }; // TODO loop
     aabbInput.aabbArray.flags = aabbInputFlags;
-    aabbInput.aabbArray.numSbtRecords = 1;
+    aabbInput.aabbArray.numSbtRecords = NB_OBJ; // plus tard NB_OBJ * RayCount
+
+    const uint32_t sbtIndex[NB_OBJ] = { 0, 1, 2 }; // TODO loop
+    CUdeviceptr deviceSbtIndex;
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceSbtIndex), sizeof(sbtIndex)));
+    CUDA_CHECK(cudaMemcpy(
+        reinterpret_cast<void*>(deviceSbtIndex),
+        sbtIndex,
+        sizeof(sbtIndex),
+        cudaMemcpyKind::cudaMemcpyHostToDevice));
+    aabbInput.aabbArray.sbtIndexOffsetBuffer = deviceSbtIndex;
+    aabbInput.aabbArray.sbtIndexOffsetSizeInBytes = sizeof(uint32_t);
+    aabbInput.aabbArray.primitiveIndexOffset = 0;
 
     // Query OptiX for the memory requirements for our GAS
     OptixAccelBufferSizes gasBufferSizes;
@@ -322,7 +359,10 @@ void Renderer::BuildAccelerationStructure()
 
     // Additionnal compaction steps
     size_t compactedGasSize;
-    CUDA_CHECK(cudaMemcpy(&compactedGasSize, (void*)emitProperty.result, sizeof(size_t), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaMemcpy(&compactedGasSize,
+        (void*)emitProperty.result,
+        sizeof(size_t),
+        cudaMemcpyKind::cudaMemcpyDeviceToHost));
 
     if (compactedGasSize < gasBufferSizes.outputSizeInBytes)
     {
@@ -343,23 +383,6 @@ void Renderer::CreatePipeline()
 {
     std::cout << "RayTracinGO: creating the pipeline ..." << std::endl;
 
-    // Push all program groups in a vector
-    std::vector<OptixProgramGroup> programGroups;
-    programGroups.reserve(m_rayGenerationPrograms.size() + m_missPrograms.size() + m_hitGroupPrograms.size());
-
-    for (OptixProgramGroup rayGenerationProgram : m_rayGenerationPrograms)
-    {
-        programGroups.push_back(rayGenerationProgram);
-    }
-    for (OptixProgramGroup missProgram : m_missPrograms)
-    {
-        programGroups.push_back(missProgram);
-    }
-    for (OptixProgramGroup hitGroupProgram : m_hitGroupPrograms)
-    {
-        programGroups.push_back(hitGroupProgram);
-    }
-
     m_pipelineLinkOptions = {};
     m_pipelineLinkOptions.maxTraceDepth = 5; // Maximum trace recursion depth. The maximum is 31
     m_pipelineLinkOptions.debugLevel = OptixCompileDebugLevel::OPTIX_COMPILE_DEBUG_LEVEL_FULL;
@@ -373,29 +396,29 @@ void Renderer::CreatePipeline()
         m_optixContext,
         &m_pipelineCompileOptions,
         &m_pipelineLinkOptions,
-        programGroups.data(),
-        (int)programGroups.size(),
+        m_programs.data(),
+        static_cast<unsigned int>(m_programs.size()),
         log,
         &sizeof_log,
         &m_pipeline
     ));
 }
 
-void Renderer::BuildShaderBindingTable()
+void Renderer::BuildShaderBindingTable(const Scene& scene)
 {
     std::cout << "RayTracinGO: building the shader binding table ..." << std::endl;
-
-    BuildRayGenerationRecords();
-    BuildMissRecords();
-    BuildHitGroupRecords();
+    int sbtIndex = 0;
+    BuildRayGenerationRecords(sbtIndex);
+    BuildMissRecords(sbtIndex);
+    BuildHitGroupRecords(sbtIndex, scene);
 }
 
-void Renderer::BuildRayGenerationRecords()
+void Renderer::BuildRayGenerationRecords(int& sbtIndex)
 {
     // Allocate the raygen record on the device
-    CUdeviceptr  cameraRecord;
+    CUdeviceptr  deviceCameraRecord;
     const size_t cameraRecordSize = sizeof(CameraSbtRecord);
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&cameraRecord), cameraRecordSize));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceCameraRecord), cameraRecordSize));
 
     /// \todo Configurer la camera ailleurs
     sutil::Camera camera;
@@ -407,77 +430,96 @@ void Renderer::BuildRayGenerationRecords()
     cameraSbt.data.cam_eye = camera.eye();   // cam_eye name use in cuda file
     camera.UVWFrame(cameraSbt.data.camera_u, cameraSbt.data.camera_v, cameraSbt.data.camera_w);
 
-    OPTIX_CHECK(optixSbtRecordPackHeader(m_rayGenerationPrograms[0], &cameraSbt));
+    OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &cameraSbt));
+    sbtIndex++;
 
     // Now copy our host record to the device
     CUDA_CHECK(cudaMemcpy(
-        reinterpret_cast<void*>(cameraRecord),
+        reinterpret_cast<void*>(deviceCameraRecord),
         &cameraSbt,
         cameraRecordSize,
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
 
     // Specify how raygen record are packed in memory
-    m_shaderBindingTable.raygenRecord = cameraRecord;
+    m_shaderBindingTable.raygenRecord = deviceCameraRecord;
 }
 
-void Renderer::BuildMissRecords()
+void Renderer::BuildMissRecords(int& sbtIndex)
 {
     // Allocate our miss record on the device
-    CUdeviceptr missRecord;
+    CUdeviceptr deviceMissRecord;
     size_t      missRecordSize = sizeof(MissSbtRecord);
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&missRecord), missRecordSize));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceMissRecord), missRecordSize));
 
     // Populate host-side copy of the record with header and data
     MissSbtRecord missRecordSbt;
     missRecordSbt.data = { 0.8f, 0.97f, 1.0f };
-    OPTIX_CHECK(optixSbtRecordPackHeader(m_missPrograms[0], &missRecordSbt));
+    OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &missRecordSbt));
+    sbtIndex++;
 
     // Now copy our host record to the device
     CUDA_CHECK(cudaMemcpy(
-        reinterpret_cast<void*>(missRecord),
+        reinterpret_cast<void*>(deviceMissRecord),
         &missRecordSbt,
         missRecordSize,
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
 
     // Finally we specify how many records and how they are packed in memory
-    m_shaderBindingTable.missRecordBase = missRecord;
+    m_shaderBindingTable.missRecordBase = deviceMissRecord;
     m_shaderBindingTable.missRecordStrideInBytes = sizeof(MissSbtRecord);
-    m_shaderBindingTable.missRecordCount = 1;
+    m_shaderBindingTable.missRecordCount = 1; // RaytypeCount plus tard
 }
 
-void Renderer::BuildHitGroupRecords()
+void Renderer::BuildHitGroupRecords(int& sbtIndex, const Scene& scene)
 {
-    // Allocate our hit group record on the device
-    CUdeviceptr hitGroupRecord;
-    size_t      hitGroupRecordSize = sizeof(HitGroupSbtRecord);
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&hitGroupRecord), hitGroupRecordSize));
-
-    // Populate host side copy of the record with header and data
-    HitGroupSbtRecord hgRecordSbt;
-    hgRecordSbt.data.geometry.sphere.radius= 1.0f;
-    hgRecordSbt.data.geometry.sphere.position = { 0.0f, 0.0f, 0.0f };
-
-    hgRecordSbt.data.material.basicMaterial.ka = { 1.0f, 0.0f, 1.0f };
-    hgRecordSbt.data.material.basicMaterial.kd = { 1.0f, 0.0f, 1.0f };
-    hgRecordSbt.data.material.basicMaterial.ks = { 1.0f, 0.0f, 1.0f };
-    hgRecordSbt.data.material.basicMaterial.alpha = 30.0f;
-
-    OPTIX_CHECK(optixSbtRecordPackHeader(m_hitGroupPrograms[0], &hgRecordSbt));
+    const size_t count_records = NB_OBJ; // RAY_TYPE_COUNT * NB_OBJ;
+    HitGroupSbtRecord hitgroupRecords[count_records];
+    int i = 0;
+    std::vector<std::shared_ptr<IShape>> shapes = scene.GetShapes();
+    for (std::shared_ptr<IShape> shape : shapes)
+    {
+        switch (shape->GetShapeType())
+        {
+        case ShapeType::SphereType:
+        {
+            std::shared_ptr<Sphere> sphere = std::dynamic_pointer_cast<Sphere>(shape);
+            if (sphere)
+            {
+                const glm::vec3& pos = sphere->GetWorldPosition();
+                hitgroupRecords[i].data.geometry.sphere.radius = sphere->GetRadius();
+                hitgroupRecords[i].data.geometry.sphere.position = { pos.x, pos.y, pos.z };
+                hitgroupRecords[i].data.material.basicMaterial.ka = { 1.0f, 0.0f, 1.0f };
+                hitgroupRecords[i].data.material.basicMaterial.kd = { 1.0f, 0.0f, 1.0f };
+                hitgroupRecords[i].data.material.basicMaterial.ks = { 1.0f, 0.0f, 1.0f };
+                hitgroupRecords[i].data.material.basicMaterial.alpha = 30.0f;
+                OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
+                sbtIndex++;
+                i++;
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
 
     // Now copy our host record to the device
+    CUdeviceptr deviceHitGroupRecord;
+    size_t      hitGroupRecordSize = sizeof(HitGroupSbtRecord);
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceHitGroupRecord), count_records * hitGroupRecordSize));
     CUDA_CHECK(cudaMemcpy(
-        reinterpret_cast<void*>(hitGroupRecord),
-        &hgRecordSbt,
-        hitGroupRecordSize,
+        reinterpret_cast<void*>(deviceHitGroupRecord),
+        &hitgroupRecords,
+        count_records * hitGroupRecordSize,
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
 
     // Finally we specify how many records and how they are packed in memory
-    m_shaderBindingTable.hitgroupRecordBase = hitGroupRecord;
+    m_shaderBindingTable.hitgroupRecordBase = deviceHitGroupRecord;
     m_shaderBindingTable.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
-    m_shaderBindingTable.hitgroupRecordCount = 1;
+    m_shaderBindingTable.hitgroupRecordCount = NB_OBJ; // NB_OBJ * RayType plus tard
 }
 
 void Renderer::Launch()
@@ -545,9 +587,10 @@ void Renderer::CleanUp()
     CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_deviceGasOutputBuffer)));
 
     OPTIX_CHECK(optixPipelineDestroy(m_pipeline));
-    OPTIX_CHECK(optixProgramGroupDestroy(m_hitGroupPrograms[0]));
-    OPTIX_CHECK(optixProgramGroupDestroy(m_missPrograms[0]));
-    OPTIX_CHECK(optixProgramGroupDestroy(m_rayGenerationPrograms[0]));
+    for (OptixProgramGroup program : m_programs) // reverse ?
+    {
+        OPTIX_CHECK(optixProgramGroupDestroy(program));
+    }
     OPTIX_CHECK(optixModuleDestroy(m_module));
     OPTIX_CHECK(optixDeviceContextDestroy(m_optixContext));
 }
