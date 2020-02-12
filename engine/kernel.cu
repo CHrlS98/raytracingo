@@ -171,36 +171,43 @@ extern "C" __global__ void __closesthit__ch()
             int_as_float(optixGetAttribute_1()),
             int_as_float(optixGetAttribute_2())
         );
+    const float3 N = normalize(normale);
 
     const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
     const BasicMaterial& material = hgData->material.basicMaterial;
-
-    const float3 lightPos = params.light.position;
-    const float3 lumiereAmbiante = params.ambientLight;
-    const float3 couleurEclairage = params.light.color;
 
     const float t = optixGetRayTmax();
     const float3 origin = optixGetWorldRayOrigin();
     const float3 direction = optixGetWorldRayDirection();
     const float3 x = origin + t * normalize(direction);
-
-    // Modele d'illumination de Blinn
-    const float3 Lm = normalize(lightPos - x);
-    const float3 N = normalize(normale);
     const float3 V = normalize(origin - x);
-    const float3 H = normalize(Lm + V);
 
-    const float alpha = material.alpha;
+    const float3 lumiereAmbiante = params.ambientLight;
 
-    const float3 couleurAmbiante = material.ka;
-    const float3 couleurDiffuse = material.kd;
-    const float3 couleurSpeculaire = material.ks;
+    const float& alpha = material.alpha;
+    const float3& couleurAmbiante = material.ka;
+    const float3& couleurDiffuse = material.kd;
+    const float3& couleurSpeculaire = material.ks;
 
-    const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
-    const float3 compDiffuse = max(dot(Lm, N), 0.0f) * couleurEclairage * couleurDiffuse;
-    const float3 compSpeculaire = max(powf(dot(N, H), alpha), 0.0f) * couleurEclairage * couleurSpeculaire;
+    float3 color = { 0.0f, 0.0f, 0.0f };
 
-    float3 color = compAmbiante + compDiffuse + compSpeculaire;
+    const int& nbLights = params.nbLights;
+    for (int i = 0; i < nbLights; ++i)
+    {
+        const float3 lightPos = params.lights[i].position;
+        const float3 lightColor = params.lights[i].color;
+
+        // Modele d'illumination de Blinn
+        const float3 Lm = normalize(lightPos - x);
+        const float3 H = normalize(Lm + V);
+
+        const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
+        const float3 compDiffuse = max(dot(Lm, N), 0.0f) * lightColor * couleurDiffuse;
+        const float3 compSpeculaire = max(powf(dot(N, H), alpha), 0.0f) * lightColor * couleurSpeculaire;
+
+        color += compAmbiante + compDiffuse + compSpeculaire;
+    }
+
     setPayload(color);
 }
 } // namespace engine

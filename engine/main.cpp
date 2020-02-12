@@ -49,7 +49,6 @@ int main( int argc, char* argv[] )
     std::string outfile;
     int width  = 1024;
     int height =  768;
-    engine::Scene scene = engine::Scene();
 
     for( int i = 1; i < argc; ++i )
     {
@@ -83,10 +82,10 @@ int main( int argc, char* argv[] )
 
     try
     {
+        auto scene = std::make_shared<engine::Scene>();
         engine::Renderer renderer = engine::Renderer(scene, width, height);
         renderer.Launch();
         renderer.Display(outfile);
-
     }
     catch( std::exception& e )
     {

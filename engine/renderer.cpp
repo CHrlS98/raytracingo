@@ -21,7 +21,7 @@ static void context_log_cb(unsigned int level, const char* tag, const char* mess
     std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
 }
 
-Renderer::Renderer(const Scene& scene, const int width, const int height)
+Renderer::Renderer(std::shared_ptr<Scene> scene, const int width, const int height)
     : m_windowWidth(width)
     , m_windowHeight(height)
     , m_optixContext(nullptr)
@@ -38,6 +38,7 @@ Renderer::Renderer(const Scene& scene, const int width, const int height)
     , m_outputBuffer(nullptr)
     , m_deviceGasOutputBuffer(0)
     , m_traversableHandle(0)
+    , m_scene(scene)
 {
     m_outputBuffer.reset(
         new sutil::CUDAOutputBuffer<uchar4>(
@@ -49,13 +50,13 @@ Renderer::Renderer(const Scene& scene, const int width, const int height)
 
     InitOptix();
     CreateContext();
-    BuildAccelerationStructure(scene);
+    BuildAccelerationStructure();
     CreateModule();
     CreateRayGenerationPrograms();
     CreateMissPrograms();
     CreateHitGroupPrograms();
     CreatePipeline();
-    BuildShaderBindingTable(scene);
+    BuildShaderBindingTable();
 }
 
 Renderer::~Renderer()
@@ -120,7 +121,7 @@ void Renderer::CreateModule()
     m_pipelineCompileOptions.usesMotionBlur = false;
 
     // This option is important to ensure we compile code which is optimal
-    // for our scene hierarchy. We use a single GAS – no instancing or
+    // for our scene hierarchy. We use a single GAS no instancing or
     // multi-level hierarchies
     m_pipelineCompileOptions.traversableGraphFlags = OptixTraversableGraphFlags::OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 
@@ -251,7 +252,7 @@ void Renderer::CreateHitGroupPrograms()
     }
 }
 
-void Renderer::BuildAccelerationStructure(const Scene& scene)
+void Renderer::BuildAccelerationStructure()
 {
     // Specify options for the build
     OptixAccelBuildOptions accelOptions = {};
@@ -265,7 +266,7 @@ void Renderer::BuildAccelerationStructure(const Scene& scene)
     CUdeviceptr deviceAaabbBuffer;
 
     int i = 0;
-    std::vector<std::shared_ptr<IShape>> shapes = scene.GetShapes();
+    std::vector<std::shared_ptr<IShape>> shapes = m_scene->GetShapes();
     for (std::shared_ptr<IShape> shape : shapes)
     {
         switch (shape->GetShapeType())
@@ -404,13 +405,13 @@ void Renderer::CreatePipeline()
     ));
 }
 
-void Renderer::BuildShaderBindingTable(const Scene& scene)
+void Renderer::BuildShaderBindingTable()
 {
     std::cout << "RayTracinGO: building the shader binding table ..." << std::endl;
     int sbtIndex = 0;
     BuildRayGenerationRecords(sbtIndex);
     BuildMissRecords(sbtIndex);
-    BuildHitGroupRecords(sbtIndex, scene);
+    BuildHitGroupRecords(sbtIndex);
 }
 
 void Renderer::BuildRayGenerationRecords(int& sbtIndex)
@@ -472,12 +473,12 @@ void Renderer::BuildMissRecords(int& sbtIndex)
     m_shaderBindingTable.missRecordCount = 1; // RaytypeCount plus tard
 }
 
-void Renderer::BuildHitGroupRecords(int& sbtIndex, const Scene& scene)
+void Renderer::BuildHitGroupRecords(int& sbtIndex)
 {
     const size_t count_records = NB_OBJ; // RAY_TYPE_COUNT * NB_OBJ;
     HitGroupSbtRecord hitgroupRecords[count_records];
     int i = 0;
-    std::vector<std::shared_ptr<IShape>> shapes = scene.GetShapes();
+    std::vector<std::shared_ptr<IShape>> shapes = m_scene->GetShapes();
     for (std::shared_ptr<IShape> shape : shapes)
     {
         switch (shape->GetShapeType())
@@ -522,6 +523,25 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex, const Scene& scene)
     m_shaderBindingTable.hitgroupRecordCount = NB_OBJ; // NB_OBJ * RayType plus tard
 }
 
+void Renderer::WriteLights(Params& params)
+{
+    const std::vector<PointLight>& lights = m_scene->GetLights();
+    const size_t& nbLights = lights.size();
+
+    for (size_t i = 0; i < nbLights && i < Params::MAX_LIGHTS; ++i)
+    {
+        const glm::vec3& lightPos = lights[i].GetPosition();
+        const glm::vec3& lightColor = lights[i].GetColor();
+        params.lights[i].position = { lightPos.x, lightPos.y, lightPos.z };
+        params.lights[i].color = { lightColor.x, lightColor.y, lightColor.z };
+    }
+
+    const glm::vec3& ambientLight = m_scene->GetAmbientLight();
+    params.ambientLight = { ambientLight.r, ambientLight.g, ambientLight.b };
+
+    params.nbLights = nbLights;
+}
+
 void Renderer::Launch()
 {
     std::cout << "RayTracinGO: launching OptiX ..." << std::endl;
@@ -532,10 +552,9 @@ void Renderer::Launch()
     params.image_height = m_windowHeight;
     params.origin_x = m_windowWidth / 2;
     params.origin_y = m_windowHeight / 2;
-    params.light.position = { 10.0f, 10.0f, 10.0f };
-    params.light.color = { 0.4f, 0.4f, 0.4f };
-    params.ambientLight = { 0.2f, 0.2f, 0.2f };
     params.handle = m_traversableHandle;
+
+    WriteLights(params);
 
     // Transfer params to the device
     CUdeviceptr d_param;
