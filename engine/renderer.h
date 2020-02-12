@@ -1,15 +1,15 @@
 #pragma once
 
-#include <optix.h>
-#include <vector>
-#include <driver_types.h>
-#include <memory>
+#include <PointLight.h>
+#include <params.h>
 
 #include <sutil/CUDAOutputBuffer.h>
+#include <optix.h>
+
+#include <vector>
+#include <memory>
 
 #include <scene.h>
-
-#include "params.h"
 
 namespace engine
 {
@@ -37,7 +37,7 @@ typedef ShaderBindingTableRecord<HitGroupData> HitGroupSbtRecord;
 class Renderer
 {
 public:
-    Renderer(const Scene& scene, const int width, const int height);
+    Renderer(std::shared_ptr<Scene> scene, const int width, const int height);
     ~Renderer();
 
     void Launch();
@@ -62,6 +62,8 @@ private:
     std::vector<OptixProgramGroup> m_programs;
     OptixShaderBindingTable m_shaderBindingTable;
 
+    std::shared_ptr<Scene> m_scene;
+
     std::shared_ptr<sutil::CUDAOutputBuffer<uchar4>> m_outputBuffer;
     CUdeviceptr m_deviceGasOutputBuffer;
     OptixTraversableHandle m_traversableHandle;
@@ -73,13 +75,15 @@ private:
     void CreateMissPrograms();
     void CreateHitGroupPrograms();
 
-    void BuildAccelerationStructure(const Scene& scene);
+    void BuildAccelerationStructure();
     void CreatePipeline();
-    void BuildShaderBindingTable(const Scene& scene);
+    void BuildShaderBindingTable();
 
     void BuildRayGenerationRecords(int& sbtIndex);
     void BuildMissRecords(int& sbtIndex);
-    void BuildHitGroupRecords(int& sbtIndex, const Scene& scene);
+    void BuildHitGroupRecords(int& sbtIndex);
+
+    void WriteLights(Params& params);
 
     void CleanUp();
 };

@@ -27,6 +27,9 @@
 //
 
 #include <stdint.h>
+#include <device_types.h>
+#include <vector_types.h>
+#include <optix.h>
 
 namespace engine
 {
@@ -96,13 +99,17 @@ struct HitGroupData
 
 struct Params
 {
+    static const int MAX_LIGHTS = 10;
+
     uchar4* image;
     uint32_t image_width;
     uint32_t image_height;
     int32_t origin_x;
     int32_t origin_y;
 
-    BasicLight light;
+    int nbLights;
+
+    BasicLight lights[MAX_LIGHTS];
     float3 ambientLight;
     OptixTraversableHandle handle;
 };
