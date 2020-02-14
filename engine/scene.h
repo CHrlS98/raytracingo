@@ -6,9 +6,6 @@
 
 namespace engine 
 {
-
-constexpr unsigned int NB_OBJ = 3;
-
 class IShape;
 class PointLight;
 

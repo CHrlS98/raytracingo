@@ -8,6 +8,7 @@
 #include <cuda_runtime.h>
 
 #include <sphere.h>
+#include <plane.h>
 
 #include <iostream>
 #include <iomanip>
@@ -50,8 +51,8 @@ Renderer::Renderer(std::shared_ptr<Scene> scene, const int width, const int heig
 
     InitOptix();
     CreateContext();
-    BuildAccelerationStructure();
     CreateModule();
+    BuildAccelerationStructure();
     CreateRayGenerationPrograms();
     CreateMissPrograms();
     CreateHitGroupPrograms();
@@ -150,8 +151,6 @@ void Renderer::CreateModule()
     ));
 }
 
-
-
 void Renderer::CreateRayGenerationPrograms()
 {
     std::cout << "RayTracinGO: creating the Ray Generation programs ..." << std::endl;
@@ -216,7 +215,8 @@ void Renderer::CreateHitGroupPrograms()
     std::cout << "RayTracinGO: creating HitGroup programs ..." << std::endl;
 
     // Create hit group
-    for (int i = 0; i < NB_OBJ; i++)
+    std::vector<std::shared_ptr<IShape>>& shapes = m_scene->GetShapes();
+    for (std::shared_ptr<IShape> shape : shapes)
     {
         OptixProgramGroup hitGroupProgram;
         OptixProgramGroupOptions hitGroupOptions = {}; // No options yet
@@ -233,8 +233,7 @@ void Renderer::CreateHitGroupPrograms()
 
         // Intersection device settings
         hitGroupDesc.hitgroup.moduleIS = m_module;
-        hitGroupDesc.hitgroup.entryFunctionNameIS = "__intersection__is";
-
+        hitGroupDesc.hitgroup.entryFunctionNameIS = shape->GetIntersectionProgram();
 
         char log[2048];
         size_t sizeof_log = sizeof(log);
@@ -262,7 +261,8 @@ void Renderer::BuildAccelerationStructure()
     // AABB build input
     // OptixAabb(minX, minY, minZ, maxX, maxY, maxZ)
     // axis-aligned bounding box
-    OptixAabb   aabb[NB_OBJ];
+    const size_t nbObjects = m_scene->GetShapes().size();
+    OptixAabb* aabb = new OptixAabb[nbObjects];
     CUdeviceptr deviceAaabbBuffer;
 
     int i = 0;
@@ -280,16 +280,25 @@ void Renderer::BuildAccelerationStructure()
             }
             break;
         }
+        case ShapeType::PlaneType:
+        {
+            std::shared_ptr<Plane> plane = std::dynamic_pointer_cast<Plane>(shape);
+            if (plane)
+            {
+                aabb[i++] = plane->GetAabb();
+            }
+            break;
+        }
         default:
             break;
         }
     }
 
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceAaabbBuffer), NB_OBJ * sizeof(OptixAabb)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceAaabbBuffer), nbObjects * sizeof(OptixAabb)));
     CUDA_CHECK(cudaMemcpy(
         reinterpret_cast<void*>(deviceAaabbBuffer),
-        &aabb,
-        NB_OBJ * sizeof(OptixAabb),
+        aabb,
+        nbObjects * sizeof(OptixAabb),
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
 
@@ -300,19 +309,29 @@ void Renderer::BuildAccelerationStructure()
 
     aabbInput.type = OptixBuildInputType::OPTIX_BUILD_INPUT_TYPE_CUSTOM_PRIMITIVES;
     aabbInput.aabbArray.aabbBuffers = &deviceAaabbBuffer;
-    aabbInput.aabbArray.numPrimitives = NB_OBJ;
+    aabbInput.aabbArray.numPrimitives = static_cast<int>(nbObjects);
 
-    uint32_t aabbInputFlags[NB_OBJ] = { OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_NONE }; // TODO loop
+    uint32_t* aabbInputFlags = new uint32_t[nbObjects];//{ OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_NONE
+    for (int i = 0; i < nbObjects; ++i)
+    {
+        aabbInputFlags[i] = OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_NONE;
+    }
+
     aabbInput.aabbArray.flags = aabbInputFlags;
-    aabbInput.aabbArray.numSbtRecords = NB_OBJ; // plus tard NB_OBJ * RayCount
+    aabbInput.aabbArray.numSbtRecords = static_cast<int>(nbObjects); // plus tard nbObjects * RayCount
 
-    const uint32_t sbtIndex[NB_OBJ] = { 0, 1, 2 }; // TODO loop
+    uint32_t* sbtIndex = new uint32_t[nbObjects];
+    for (int i = 0; i < nbObjects; ++i)
+    {
+        sbtIndex[i] = i;
+    }
+
     CUdeviceptr deviceSbtIndex;
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceSbtIndex), sizeof(sbtIndex)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceSbtIndex), nbObjects * sizeof(uint32_t)));
     CUDA_CHECK(cudaMemcpy(
         reinterpret_cast<void*>(deviceSbtIndex),
         sbtIndex,
-        sizeof(sbtIndex),
+        nbObjects * sizeof(uint32_t),
         cudaMemcpyKind::cudaMemcpyHostToDevice));
     aabbInput.aabbArray.sbtIndexOffsetBuffer = deviceSbtIndex;
     aabbInput.aabbArray.sbtIndexOffsetSizeInBytes = sizeof(uint32_t);
@@ -378,6 +397,10 @@ void Renderer::BuildAccelerationStructure()
     {
         m_deviceGasOutputBuffer = deviceBufferTempOutputGasAndCompactedSize;
     }
+
+    delete[] aabb;
+    delete[] aabbInputFlags;
+    delete[] sbtIndex;
 }
 
 void Renderer::CreatePipeline()
@@ -475,8 +498,8 @@ void Renderer::BuildMissRecords(int& sbtIndex)
 
 void Renderer::BuildHitGroupRecords(int& sbtIndex)
 {
-    const size_t count_records = NB_OBJ; // RAY_TYPE_COUNT * NB_OBJ;
-    HitGroupSbtRecord hitgroupRecords[count_records];
+    const size_t count_records = m_scene->GetShapes().size(); // RAY_TYPE_COUNT * NB_OBJ;
+    HitGroupSbtRecord* hitgroupRecords = new HitGroupSbtRecord[count_records];
     int i = 0;
     std::vector<std::shared_ptr<IShape>> shapes = m_scene->GetShapes();
     for (std::shared_ptr<IShape> shape : shapes)
@@ -496,8 +519,27 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex)
                 hitgroupRecords[i].data.material.basicMaterial.ks = { 1.0f, 0.0f, 1.0f };
                 hitgroupRecords[i].data.material.basicMaterial.alpha = 30.0f;
                 OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
-                sbtIndex++;
-                i++;
+                ++sbtIndex;
+                ++i;
+            }
+            break;
+        }
+        case ShapeType::PlaneType:
+        {
+            std::shared_ptr<Plane> plane = std::dynamic_pointer_cast<Plane>(shape);
+            if (plane)
+            {
+                const glm::vec3& pos = plane->GetWorldPosition();
+                const glm::vec3& normal = plane->GetNormal();
+                hitgroupRecords[i].data.geometry.plane.normal = { normal.x, normal.y, normal.z };
+                hitgroupRecords[i].data.geometry.plane.position = { pos.x, pos.y, pos.z };
+                hitgroupRecords[i].data.material.basicMaterial.ka = { 1.0f, 0.0f, 0.0f };
+                hitgroupRecords[i].data.material.basicMaterial.kd = { 1.0f, 0.0f, 0.0f };
+                hitgroupRecords[i].data.material.basicMaterial.ks = { 1.0f, 1.0f, 1.0f };
+                hitgroupRecords[i].data.material.basicMaterial.alpha = 30.0f;
+                OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
+                ++sbtIndex;
+                ++i;
             }
             break;
         }
@@ -512,7 +554,7 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex)
     CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceHitGroupRecord), count_records * hitGroupRecordSize));
     CUDA_CHECK(cudaMemcpy(
         reinterpret_cast<void*>(deviceHitGroupRecord),
-        &hitgroupRecords,
+        hitgroupRecords,
         count_records * hitGroupRecordSize,
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
@@ -520,7 +562,9 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex)
     // Finally we specify how many records and how they are packed in memory
     m_shaderBindingTable.hitgroupRecordBase = deviceHitGroupRecord;
     m_shaderBindingTable.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
-    m_shaderBindingTable.hitgroupRecordCount = NB_OBJ; // NB_OBJ * RayType plus tard
+    m_shaderBindingTable.hitgroupRecordCount = static_cast<unsigned int>(count_records); // NB_OBJ * RayType plus tard
+
+    delete[] hitgroupRecords;
 }
 
 void Renderer::WriteLights(Params& params)
@@ -539,7 +583,7 @@ void Renderer::WriteLights(Params& params)
     const glm::vec3& ambientLight = m_scene->GetAmbientLight();
     params.ambientLight = { ambientLight.r, ambientLight.g, ambientLight.b };
 
-    params.nbLights = nbLights;
+    params.nbLights = static_cast<int>(nbLights);
 }
 
 void Renderer::Launch()
@@ -606,7 +650,7 @@ void Renderer::CleanUp()
     CUDA_CHECK(cudaFree(reinterpret_cast<void*>(m_deviceGasOutputBuffer)));
 
     OPTIX_CHECK(optixPipelineDestroy(m_pipeline));
-    for (OptixProgramGroup program : m_programs) // reverse ?
+    for (OptixProgramGroup program : m_programs)
     {
         OPTIX_CHECK(optixProgramGroupDestroy(program));
     }

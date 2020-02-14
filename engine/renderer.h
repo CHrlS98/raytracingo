@@ -68,8 +68,14 @@ private:
     CUdeviceptr m_deviceGasOutputBuffer;
     OptixTraversableHandle m_traversableHandle;
 
+    /// Initialise CUDA et l'API d'OptiX 
     void InitOptix();
+
+    /// Creer un contexte OptiX associe a un seul 
+    /// GPU et un seul contexte CUDA
     void CreateContext();
+
+    /// 
     void CreateModule();
     void CreateRayGenerationPrograms();
     void CreateMissPrograms();

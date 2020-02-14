@@ -9,10 +9,9 @@ Sphere::Sphere()
 }
 
 Sphere::Sphere(const glm::vec3& worldPosition, const float radius)
-    : m_radius(radius)
+    : IShape(ShapeType::SphereType, worldPosition, "__intersection__sphere")
+    ,m_radius(radius)
 {
-    m_type = ShapeType::SphereType;
-    m_worldPosition = worldPosition;
     m_boundingBox.minX = worldPosition.x - radius;
     m_boundingBox.minY = worldPosition.y - radius;
     m_boundingBox.minZ = worldPosition.z - radius;
