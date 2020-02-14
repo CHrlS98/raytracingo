@@ -62,6 +62,12 @@ struct SphereData
     float3 position;
 };
 
+struct PlaneData
+{
+    float3 normal;
+    float3 position;
+};
+
 struct BasicLight
 {
     /// Position
@@ -87,6 +93,7 @@ struct HitGroupData
     /// Representation geometrique de l'objet
     union
     {
+        PlaneData plane;
         SphereData sphere;
     } geometry;
 

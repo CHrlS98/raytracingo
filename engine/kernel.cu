@@ -31,6 +31,7 @@
 #include "params.h"
 
 #include <sutil/vec_math.h>
+#include <stdio.h>
 
 namespace engine
 {
@@ -127,7 +128,7 @@ extern "C" __global__ void __miss__ms()
 }
 
 /// Teste si un rayon intersecte avec la sphere
-extern "C" __global__ void __intersection__is()
+extern "C" __global__ void __intersection__sphere()
 {
     const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
     const SphereData& sphere = hg_data->geometry.sphere;
@@ -142,7 +143,7 @@ extern "C" __global__ void __intersection__is()
     const float b = dot(l, (o - center));
     const float c = dot(o - center, o - center) - radius * radius;
     const float discr = b * b - c;
-    if (discr >= 0.0f)
+    if (discr > 0.0f)
     {
         const float sdiscr = sqrtf(discr);
         const float t = (-b - sdiscr); // car sdiscr toujours positif
@@ -159,6 +160,38 @@ extern "C" __global__ void __intersection__is()
             0,          // user hit kind
             p0, p1, p2
         );
+    }
+}
+
+/// Teste si le rayon intersecte un plan
+extern "C" __global__ void __intersection__plane()
+{
+    const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+    const PlaneData& plane = hg_data->geometry.plane;
+    const float3 o = optixGetWorldRayOrigin();
+    const float3 dir = optixGetWorldRayDirection();
+    const float3 l = normalize(dir);
+
+    const float3 position = plane.position;
+    const float3 n = normalize(plane.normal);
+
+    float divisor = dot(l, n);
+    if (divisor != 0.0f)
+    {
+        const float t = dot(position - o, n) / divisor;
+        unsigned int p0, p1, p2;
+        p0 = float_as_int(n.x);
+        p1 = float_as_int(n.y);
+        p2 = float_as_int(n.z);
+
+        if (t > 0.0f)
+        {
+            optixReportIntersection(
+                t,      // t hit
+                0,          // user hit kind
+                p0, p1, p2
+            );
+        }
     }
 }
 

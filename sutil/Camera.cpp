@@ -47,9 +47,9 @@ void Camera::UVWFrame(float3& U, float3& V, float3& W) const
 // TODO : Upgrade this function
 void Camera::ConfigureCamera(const unsigned int width, const unsigned int height)
 {
-    setEye({ 0.0f, 0.0f, 3.0f });
+    setEye({ 0.0f, 1.0f, 5.0f });
     setLookat({ 0.0f, 0.0f, 0.0f });
-    setUp({ 0.0f, 1.0f, 3.0f });
+    setUp({ 0.0f, 1.0f, 0.0f });
     setFovY(60.0f);
     setAspectRatio((float)width / (float)height);
 }
