@@ -89,6 +89,36 @@ __forceinline__ __device__ uchar4 make_color(const float3&  c)
     );
 }
 
+static __device__ float3 TraceOcclusion(const float3& lightPos)
+{
+    const float3 origin = optixGetWorldRayOrigin();
+    const float3 dir = optixGetWorldRayDirection();
+    const float  t = optixGetRayTmax();
+
+    const float3 hitPoint = origin + t * dir;
+
+    const float lightDistance = length(lightPos - hitPoint);
+    const float3 directionToLight = normalize(lightPos - hitPoint);
+
+    float3 attenuation = make_float3(1.0f);
+
+    optixTrace(
+        params.handle,
+        hitPoint,
+        directionToLight,
+        0.01f,
+        lightDistance - 0.01f,
+        0.0f,
+        OptixVisibilityMask(1),
+        OPTIX_RAY_FLAG_NONE,
+        RAY_TYPE_OCCLUSION,
+        RAY_TYPE_COUNT,
+        RAY_TYPE_OCCLUSION,
+        reinterpret_cast<uint32_t&>(attenuation.x),
+        reinterpret_cast<uint32_t&>(attenuation.y),
+        reinterpret_cast<uint32_t&>(attenuation.z));
+    return attenuation;
+}
 
 extern "C" __global__ void __raygen__rg()
 {
@@ -132,7 +162,7 @@ extern "C" __global__ void __intersection__sphere()
 {
     const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
     const SphereData& sphere = hg_data->geometry.sphere;
-    const float3 o = optixGetWorldRayOrigin();
+    const float3 o = optixGetWorldRayOrigin(); // optixGetObjectRayOrigin() peu etre moins couteux ?
     const float3 dir = optixGetWorldRayDirection();
 
     const float3 center = sphere.position;
@@ -228,7 +258,8 @@ extern "C" __global__ void __closesthit__ch()
     for (int i = 0; i < nbLights; ++i)
     {
         const float3 lightPos = params.lights[i].position;
-        const float3 lightColor = params.lights[i].color;
+        const float3 attenuation = TraceOcclusion(lightPos); 
+        const float3 lightColor = params.lights[i].color * attenuation;
 
         // Modele d'illumination de Blinn
         const float3 Lm = normalize(lightPos - x);
@@ -243,4 +274,11 @@ extern "C" __global__ void __closesthit__ch()
 
     setPayload(color);
 }
+
+extern "C" __global__ void __closesthit__full_occlusion()
+{
+    // materiel 100% opaque
+    setPayload({ 0.0f, 0.0f, 0.0f });
+}
+
 } // namespace engine
