@@ -138,7 +138,7 @@ extern "C" __global__ void __raygen__rg()
     const float3      V = rtData->camera_v;
     const float3      W = rtData->camera_w;
 
-    unsigned int seed = 0;
+    unsigned int seed = idx.y;
     float3 color = { 0.0f, 0.0f, 0.0f };
     for (int i = 0; i < params.samplePerPixel; i++)
     {
