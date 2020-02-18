@@ -186,7 +186,7 @@ void Renderer::CreateMissPrograms()
     std::cout << "RayTracinGO: creating the Miss programs ..." << std::endl;
 
     // Create miss program group
-    OptixProgramGroup missProgram;
+    OptixProgramGroup radianceMissProgram;
     OptixProgramGroupOptions missOptions = {}; // No options yet
     OptixProgramGroupDesc missDesc = {};
     missDesc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_MISS;
@@ -205,9 +205,25 @@ void Renderer::CreateMissPrograms()
         &missOptions,
         log,
         &sizeof_log,
-        &missProgram
+        &radianceMissProgram
     ));
-    m_programs.push_back(missProgram);
+    m_programs.push_back(radianceMissProgram);
+
+    OptixProgramGroup occlusionMissProgram;
+    missDesc.miss.module = nullptr;
+    missDesc.miss.entryFunctionName = nullptr;
+
+    OPTIX_CHECK_LOG(optixProgramGroupCreate(
+        m_optixContext,
+        &missDesc,
+        1,   // num program groups
+        &missOptions,
+        log,
+        &sizeof_log,
+        &occlusionMissProgram
+    ));
+    m_programs.push_back(occlusionMissProgram);
+
 }
 
 void Renderer::CreateHitGroupPrograms()
@@ -218,36 +234,65 @@ void Renderer::CreateHitGroupPrograms()
     std::vector<std::shared_ptr<IShape>>& shapes = m_scene->GetShapes();
     for (std::shared_ptr<IShape> shape : shapes)
     {
-        OptixProgramGroup hitGroupProgram;
-        OptixProgramGroupOptions hitGroupOptions = {}; // No options yet
-        OptixProgramGroupDesc hitGroupDesc = {};
-        hitGroupDesc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+        OptixProgramGroup radianceProgram;
+        OptixProgramGroupOptions radianceOptions = {}; // No options yet
+        OptixProgramGroupDesc radianceDesc = {};
+        radianceDesc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
         // Closest hit device settings
-        hitGroupDesc.hitgroup.moduleCH = m_module;
-        hitGroupDesc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
+        radianceDesc.hitgroup.moduleCH = m_module;
+        radianceDesc.hitgroup.entryFunctionNameCH = "__closesthit__ch";
 
         // Any hit device settings
-        hitGroupDesc.hitgroup.moduleAH = nullptr;
-        hitGroupDesc.hitgroup.entryFunctionNameAH = nullptr;
+        radianceDesc.hitgroup.moduleAH = nullptr;
+        radianceDesc.hitgroup.entryFunctionNameAH = nullptr;
 
         // Intersection device settings
-        hitGroupDesc.hitgroup.moduleIS = m_module;
-        hitGroupDesc.hitgroup.entryFunctionNameIS = shape->GetIntersectionProgram();
+        radianceDesc.hitgroup.moduleIS = m_module;
+        radianceDesc.hitgroup.entryFunctionNameIS = shape->GetIntersectionProgram();
 
         char log[2048];
         size_t sizeof_log = sizeof(log);
 
         OPTIX_CHECK_LOG(optixProgramGroupCreate(
             m_optixContext,
-            &hitGroupDesc,
+            &radianceDesc,
             1,   // num program groups
-            &hitGroupOptions,
+            &radianceOptions,
             log,
             &sizeof_log,
-            &hitGroupProgram
+            &radianceProgram
         ));
-        m_programs.push_back(hitGroupProgram);
+        m_programs.push_back(radianceProgram);
+
+
+        OptixProgramGroup occlusionProgram;
+        OptixProgramGroupOptions occlusionOptions = {}; // No options yet
+        OptixProgramGroupDesc occlusionDesc = {};
+        occlusionDesc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
+
+        // Closest hit device settings
+        occlusionDesc.hitgroup.moduleCH = m_module;
+        occlusionDesc.hitgroup.entryFunctionNameCH = "__closesthit__full_occlusion";
+
+        // Any hit device settings
+        occlusionDesc.hitgroup.moduleAH = nullptr;
+        occlusionDesc.hitgroup.entryFunctionNameAH = nullptr;
+
+        // Intersection device settings
+        occlusionDesc.hitgroup.moduleIS = m_module;
+        occlusionDesc.hitgroup.entryFunctionNameIS = shape->GetIntersectionProgram();
+
+        OPTIX_CHECK_LOG(optixProgramGroupCreate(
+            m_optixContext,
+            &occlusionDesc,
+            1,   // num program groups
+            &occlusionOptions,
+            log,
+            &sizeof_log,
+            &occlusionProgram
+        ));
+        m_programs.push_back(occlusionProgram);
     }
 }
 
@@ -474,32 +519,37 @@ void Renderer::BuildMissRecords(int& sbtIndex)
     // Allocate our miss record on the device
     CUdeviceptr deviceMissRecord;
     size_t      missRecordSize = sizeof(MissSbtRecord);
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceMissRecord), missRecordSize));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceMissRecord), RayType::RAY_TYPE_COUNT * missRecordSize));
 
     // Populate host-side copy of the record with header and data
-    MissSbtRecord missRecordSbt;
-    missRecordSbt.data = { 0.8f, 0.97f, 1.0f };
-    OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &missRecordSbt));
-    sbtIndex++;
+    MissSbtRecord* missRecordSbt = new MissSbtRecord[RayType::RAY_TYPE_COUNT];
+    for (int i = 0; i < RayType::RAY_TYPE_COUNT; ++i)
+    {
+        missRecordSbt[i].data = { 0.8f, 0.97f, 1.0f };
+        OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &missRecordSbt[i]));
+        sbtIndex++;
+    }
 
     // Now copy our host record to the device
     CUDA_CHECK(cudaMemcpy(
         reinterpret_cast<void*>(deviceMissRecord),
-        &missRecordSbt,
-        missRecordSize,
+        missRecordSbt,
+        RayType::RAY_TYPE_COUNT * missRecordSize,
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
 
     // Finally we specify how many records and how they are packed in memory
     m_shaderBindingTable.missRecordBase = deviceMissRecord;
     m_shaderBindingTable.missRecordStrideInBytes = sizeof(MissSbtRecord);
-    m_shaderBindingTable.missRecordCount = 1; // RaytypeCount plus tard
+    m_shaderBindingTable.missRecordCount = RayType::RAY_TYPE_COUNT;
+
+    delete[] missRecordSbt;
 }
 
 void Renderer::BuildHitGroupRecords(int& sbtIndex)
 {
-    const size_t count_records = m_scene->GetShapes().size(); // RAY_TYPE_COUNT * NB_OBJ;
-    HitGroupSbtRecord* hitgroupRecords = new HitGroupSbtRecord[count_records];
+    const size_t recordsCount = RayType::RAY_TYPE_COUNT * m_scene->GetShapes().size();
+    HitGroupSbtRecord* hitgroupRecords = new HitGroupSbtRecord[recordsCount];
     int i = 0;
     std::vector<std::shared_ptr<IShape>> shapes = m_scene->GetShapes();
     for (std::shared_ptr<IShape> shape : shapes)
@@ -518,6 +568,10 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex)
                 hitgroupRecords[i].data.material.basicMaterial.kd = { 1.0f, 0.0f, 1.0f };
                 hitgroupRecords[i].data.material.basicMaterial.ks = { 1.0f, 0.0f, 1.0f };
                 hitgroupRecords[i].data.material.basicMaterial.alpha = 30.0f;
+                OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
+                ++sbtIndex;
+                ++i;
+                hitgroupRecords[i] = hitgroupRecords[i - 1];
                 OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
                 ++sbtIndex;
                 ++i;
@@ -540,6 +594,9 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex)
                 OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
                 ++sbtIndex;
                 ++i;
+                hitgroupRecords[i] = hitgroupRecords[i - 1];
+                OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
+                ++i;
             }
             break;
         }
@@ -551,18 +608,18 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex)
     // Now copy our host record to the device
     CUdeviceptr deviceHitGroupRecord;
     size_t      hitGroupRecordSize = sizeof(HitGroupSbtRecord);
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceHitGroupRecord), count_records * hitGroupRecordSize));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceHitGroupRecord), recordsCount * hitGroupRecordSize));
     CUDA_CHECK(cudaMemcpy(
         reinterpret_cast<void*>(deviceHitGroupRecord),
         hitgroupRecords,
-        count_records * hitGroupRecordSize,
+        recordsCount * hitGroupRecordSize,
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
 
     // Finally we specify how many records and how they are packed in memory
     m_shaderBindingTable.hitgroupRecordBase = deviceHitGroupRecord;
     m_shaderBindingTable.hitgroupRecordStrideInBytes = sizeof(HitGroupSbtRecord);
-    m_shaderBindingTable.hitgroupRecordCount = static_cast<unsigned int>(count_records); // NB_OBJ * RayType plus tard
+    m_shaderBindingTable.hitgroupRecordCount = static_cast<unsigned int>(recordsCount);
 
     delete[] hitgroupRecords;
 }
