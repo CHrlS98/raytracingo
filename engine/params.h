@@ -113,6 +113,7 @@ struct Params
     uint32_t image_height;
     int32_t origin_x;
     int32_t origin_y;
+    int32_t samplePerPixel;
 
     int nbLights;
 

@@ -653,6 +653,7 @@ void Renderer::Launch()
     params.image_height = m_windowHeight;
     params.origin_x = m_windowWidth / 2;
     params.origin_y = m_windowHeight / 2;
+    params.samplePerPixel = 16;
     params.handle = m_traversableHandle;
 
     WriteLights(params);

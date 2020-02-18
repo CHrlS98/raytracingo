@@ -29,6 +29,7 @@
 #include <optix.h>
 
 #include "params.h"
+#include "random.h"
 
 #include <sutil/vec_math.h>
 #include <stdio.h>
@@ -125,6 +126,10 @@ extern "C" __global__ void __raygen__rg()
     // lookup our location within the launch grid
     const uint3 idx = optixGetLaunchIndex();
     const uint3 dim = optixGetLaunchDimensions();
+    const float x = static_cast<float>(idx.x);
+    const float y = static_cast<float>(idx.y);
+    const float dimX = static_cast<float>(dim.x);
+    const float dimY = static_cast<float>(dim.y);
 
     // Get the generic memory space pointer to the data region of the currently
     // active SBT (shader binding table) record corresponding to the current program
@@ -132,22 +137,25 @@ extern "C" __global__ void __raygen__rg()
     const float3      U = rtData->camera_u;
     const float3      V = rtData->camera_v;
     const float3      W = rtData->camera_w;
-    const float2      d = 2.0f * make_float2(
-        static_cast<float>(idx.x) / static_cast<float>(dim.x),
-        static_cast<float>(idx.y) / static_cast<float>(dim.y)
-    ) - 1.0f;
 
-    const float3 origin = rtData->cam_eye;
-    const float3 direction = normalize(d.x * U + d.y * V + W);
-    float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
-    trace(params.handle,
-        origin,
-        direction,
-        0.00f,  // tmin
-        1e16f,  // tmax
-        &payload_rgb);
+    unsigned int seed = 0;
+    float3 color = { 0.0f, 0.0f, 0.0f };
+    for (int i = 0; i < params.samplePerPixel; i++)
+    {
+        const float2 d = 2.0f * make_float2((x + rnd(seed)) / dimX, (y + rnd(seed)) / dimY) - 1.0f;
+        const float3 origin = rtData->cam_eye;
+        const float3 direction = normalize(d.x * U + d.y * V + W);
+        float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
+        trace(params.handle,
+            origin,
+            direction,
+            0.00f,  // tmin
+            1e16f,  // tmax
+            &payload_rgb);
 
-    params.image[idx.y * params.image_width + idx.x] = make_color(payload_rgb);
+        color += payload_rgb;
+    }
+    params.image[idx.y * params.image_width + idx.x] = make_color(color / static_cast<float>(params.samplePerPixel));
 }
 
 
