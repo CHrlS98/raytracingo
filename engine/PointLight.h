@@ -4,6 +4,8 @@
 
 namespace engine
 {
+namespace host
+{
 class PointLight
 {
 public: 
@@ -33,4 +35,5 @@ private:
     /// Couleur de la lumiere
     glm::vec3 m_color;
 };
-};
+} // namespace host
+} // namespace engine

@@ -33,11 +33,15 @@
 
 namespace engine
 {
-
+namespace device
+{
 enum RayType
 {
+    /// Rayon pour le calcul d'illumination
     RAY_TYPE_RADIANCE  = 0,
+    /// Rayon pour le calcul d'ombre
     RAY_TYPE_OCCLUSION = 1,
+    /// Nombre de rayons differents
     RAY_TYPE_COUNT
 };
 
@@ -45,26 +49,29 @@ struct BasicMaterial
 {
     /// Couleur ambiante
     float3 ka;
-
     /// Couleur diffuse
     float3 kd;
-
     /// Couleur speculaire
     float3 ks;
-
+    /// Couleur reflexion
+    float3 kr;
     /// Coefficient de reflexion speculaire
     float alpha;
 };
 
 struct SphereData
 {
+    /// Rayon de la sphere
     float radius;
+    /// Position dans le repere monde
     float3 position;
 };
 
 struct PlaneData
 {
+    /// Normale du plan en coordonnees monde
     float3 normal;
+    /// Position du plan dans le repere monde
     float3 position;
 };
 
@@ -72,19 +79,21 @@ struct BasicLight
 {
     /// Position
     float3 position;
-
     /// Couleur de l'eclairage
     float3 color;
 };
 
 struct CameraData
 {
+    /// Position de l'oeil en coordonnees monde
     float3 cam_eye;
+    /// Axes de la camera dans le repere monde
     float3 camera_u, camera_v, camera_w;
 };
 
 struct MissData
 {
+    /// Couleur de l'arriere-plan
     float r, g, b;
 };
 
@@ -96,7 +105,6 @@ struct HitGroupData
         PlaneData plane;
         SphereData sphere;
     } geometry;
-
     /// Materiel de l'objet a representer
     union
     {
@@ -106,19 +114,27 @@ struct HitGroupData
 
 struct Params
 {
+    /// Nombre maximum de lumieres dans une scene
     static const int MAX_LIGHTS = 10;
 
+    /// Tableau contenant l'image rendue apres une execution d'OptiX
     uchar4* image;
+    /// Largeur de l'image a generer
     uint32_t image_width;
+    /// hauteur de l'image a generer
     uint32_t image_height;
-    int32_t origin_x;
-    int32_t origin_y;
+    /// Nombre d'echantillons par pixels
     int32_t samplePerPixel;
-
-    int nbLights;
-
+    /// Nombre de lumieres dans la scene
+    int nbLights; 
+    /// Nombre maximum de recursions pour le calcul des reflexions
+    int maxTraceDepth;
+    /// Tableau de lumieres
     BasicLight lights[MAX_LIGHTS];
+    /// Couleur de l'eclairage ambiant
     float3 ambientLight;
+    /// Handle vers la geometrie de la scene
     OptixTraversableHandle handle;
 };
+} // namespace device
 } // namespace engine
