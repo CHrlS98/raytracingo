@@ -82,8 +82,8 @@ int main( int argc, char* argv[] )
 
     try
     {
-        auto scene = std::make_shared<engine::Scene>();
-        engine::Renderer renderer = engine::Renderer(scene, width, height);
+        auto scene = std::make_shared<engine::host::Scene>();
+        engine::host::Renderer renderer = engine::host::Renderer(scene, width, height);
         renderer.Launch();
         renderer.Display(outfile);
     }

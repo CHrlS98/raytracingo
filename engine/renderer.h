@@ -13,6 +13,8 @@
 
 namespace engine
 {
+namespace host
+{
 enum LogCallbackLevel
 {
     Disable = 0,    // Setting the callback level will disable all messages.The callback function will not be called in this case
@@ -30,9 +32,9 @@ struct ShaderBindingTableRecord
 };
 
 // These Data are defined in the params.h
-typedef ShaderBindingTableRecord<CameraData> CameraSbtRecord;
-typedef ShaderBindingTableRecord<MissData> MissSbtRecord;
-typedef ShaderBindingTableRecord<HitGroupData> HitGroupSbtRecord;
+typedef ShaderBindingTableRecord<device::CameraData> CameraSbtRecord;
+typedef ShaderBindingTableRecord<device::MissData> MissSbtRecord;
+typedef ShaderBindingTableRecord<device::HitGroupData> HitGroupSbtRecord;
 
 class Renderer
 {
@@ -89,8 +91,9 @@ private:
     void BuildMissRecords(int& sbtIndex);
     void BuildHitGroupRecords(int& sbtIndex);
 
-    void WriteLights(Params& params);
+    void WriteLights(device::Params& params);
 
     void CleanUp();
 };
+} // namespace host
 } // namespace engine

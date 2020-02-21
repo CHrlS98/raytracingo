@@ -16,7 +16,8 @@
 
 namespace engine
 {
-
+namespace host
+{
 static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*callbackdata */)
 {
     std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
@@ -43,10 +44,10 @@ Renderer::Renderer(std::shared_ptr<Scene> scene, const int width, const int heig
 {
     m_outputBuffer.reset(
         new sutil::CUDAOutputBuffer<uchar4>(
-            sutil::CUDAOutputBufferType::CUDA_DEVICE, 
-            m_windowWidth, 
+            sutil::CUDAOutputBufferType::CUDA_DEVICE,
+            m_windowWidth,
             m_windowHeight
-        )
+            )
     );
 
     InitOptix();
@@ -78,7 +79,7 @@ void Renderer::InitOptix()
         throw std::runtime_error("RayTracinGO: no CUDA capable devices found!");
     }
     std::cout << "RayTracinGO: found " << numDevices << " CUDA devices" << std::endl;
-    
+
     // Initialize the OptiX API, loading all API entry points
     OPTIX_CHECK(optixInit());
 
@@ -127,7 +128,8 @@ void Renderer::CreateModule()
     m_pipelineCompileOptions.traversableGraphFlags = OptixTraversableGraphFlags::OPTIX_TRAVERSABLE_GRAPH_FLAG_ALLOW_SINGLE_GAS;
 
     // Our device code uses 3 payload registers (r,g,b output value)
-    m_pipelineCompileOptions.numPayloadValues = 3;      // How much storage, in 32b words, to make available for the payload, [0..8]
+    // 4th payload contains the level of recursivity we're at
+    m_pipelineCompileOptions.numPayloadValues = 4;      // How much storage, in 32b words, to make available for the payload, [0..8]
     m_pipelineCompileOptions.numAttributeValues = 3;    // How much storage, in 32b words, to make available for the attributes , [2..8]
     m_pipelineCompileOptions.exceptionFlags = OptixExceptionFlags::OPTIX_EXCEPTION_FLAG_NONE;  // TODO: should be OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 
@@ -185,6 +187,9 @@ void Renderer::CreateMissPrograms()
 {
     std::cout << "RayTracinGO: creating the Miss programs ..." << std::endl;
 
+    char log[2048];
+    size_t sizeof_log = sizeof(log);
+
     // Create miss program group
     OptixProgramGroup radianceMissProgram;
     OptixProgramGroupOptions missOptions = {}; // No options yet
@@ -194,9 +199,6 @@ void Renderer::CreateMissPrograms()
     // Miss group device settings
     missDesc.miss.module = m_module;
     missDesc.miss.entryFunctionName = "__miss__ms";
-
-    char log[2048];
-    size_t sizeof_log = sizeof(log);
 
     OPTIX_CHECK_LOG(optixProgramGroupCreate(
         m_optixContext,
@@ -209,6 +211,7 @@ void Renderer::CreateMissPrograms()
     ));
     m_programs.push_back(radianceMissProgram);
 
+    // occlusion miss program group
     OptixProgramGroup occlusionMissProgram;
     missDesc.miss.module = nullptr;
     missDesc.miss.entryFunctionName = nullptr;
@@ -223,7 +226,6 @@ void Renderer::CreateMissPrograms()
         &occlusionMissProgram
     ));
     m_programs.push_back(occlusionMissProgram);
-
 }
 
 void Renderer::CreateHitGroupPrograms()
@@ -234,6 +236,9 @@ void Renderer::CreateHitGroupPrograms()
     std::vector<std::shared_ptr<IShape>>& shapes = m_scene->GetShapes();
     for (std::shared_ptr<IShape> shape : shapes)
     {
+        //
+        // Radiance program
+        //
         OptixProgramGroup radianceProgram;
         OptixProgramGroupOptions radianceOptions = {}; // No options yet
         OptixProgramGroupDesc radianceDesc = {};
@@ -265,7 +270,9 @@ void Renderer::CreateHitGroupPrograms()
         ));
         m_programs.push_back(radianceProgram);
 
-
+        //
+        // Occlusion program
+        //
         OptixProgramGroup occlusionProgram;
         OptixProgramGroupOptions occlusionOptions = {}; // No options yet
         OptixProgramGroupDesc occlusionDesc = {};
@@ -453,7 +460,7 @@ void Renderer::CreatePipeline()
     std::cout << "RayTracinGO: creating the pipeline ..." << std::endl;
 
     m_pipelineLinkOptions = {};
-    m_pipelineLinkOptions.maxTraceDepth = 5; // Maximum trace recursion depth. The maximum is 31
+    m_pipelineLinkOptions.maxTraceDepth = 10; // Maximum trace recursion depth. The maximum is 31
     m_pipelineLinkOptions.debugLevel = OptixCompileDebugLevel::OPTIX_COMPILE_DEBUG_LEVEL_FULL;
     m_pipelineLinkOptions.overrideUsesMotionBlur = false;
 
@@ -519,13 +526,13 @@ void Renderer::BuildMissRecords(int& sbtIndex)
     // Allocate our miss record on the device
     CUdeviceptr deviceMissRecord;
     size_t      missRecordSize = sizeof(MissSbtRecord);
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceMissRecord), RayType::RAY_TYPE_COUNT * missRecordSize));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&deviceMissRecord), device::RayType::RAY_TYPE_COUNT * missRecordSize));
 
     // Populate host-side copy of the record with header and data
-    MissSbtRecord* missRecordSbt = new MissSbtRecord[RayType::RAY_TYPE_COUNT];
-    for (int i = 0; i < RayType::RAY_TYPE_COUNT; ++i)
+    MissSbtRecord* missRecordSbt = new MissSbtRecord[device::RayType::RAY_TYPE_COUNT];
+    for (int i = 0; i < device::RayType::RAY_TYPE_COUNT; ++i)
     {
-        missRecordSbt[i].data = { 0.8f, 0.97f, 1.0f };
+        missRecordSbt[i].data = { 0.0f, 0.0f, 0.0f };
         OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &missRecordSbt[i]));
         sbtIndex++;
     }
@@ -534,75 +541,34 @@ void Renderer::BuildMissRecords(int& sbtIndex)
     CUDA_CHECK(cudaMemcpy(
         reinterpret_cast<void*>(deviceMissRecord),
         missRecordSbt,
-        RayType::RAY_TYPE_COUNT * missRecordSize,
+        device::RayType::RAY_TYPE_COUNT * missRecordSize,
         cudaMemcpyKind::cudaMemcpyHostToDevice
     ));
 
     // Finally we specify how many records and how they are packed in memory
     m_shaderBindingTable.missRecordBase = deviceMissRecord;
     m_shaderBindingTable.missRecordStrideInBytes = sizeof(MissSbtRecord);
-    m_shaderBindingTable.missRecordCount = RayType::RAY_TYPE_COUNT;
+    m_shaderBindingTable.missRecordCount = device::RayType::RAY_TYPE_COUNT;
 
     delete[] missRecordSbt;
 }
 
 void Renderer::BuildHitGroupRecords(int& sbtIndex)
 {
-    const size_t recordsCount = RayType::RAY_TYPE_COUNT * m_scene->GetShapes().size();
+    const size_t recordsCount = device::RayType::RAY_TYPE_COUNT * m_scene->GetShapes().size();
     HitGroupSbtRecord* hitgroupRecords = new HitGroupSbtRecord[recordsCount];
     int i = 0;
     std::vector<std::shared_ptr<IShape>> shapes = m_scene->GetShapes();
     for (std::shared_ptr<IShape> shape : shapes)
     {
-        switch (shape->GetShapeType())
-        {
-        case ShapeType::SphereType:
-        {
-            std::shared_ptr<Sphere> sphere = std::dynamic_pointer_cast<Sphere>(shape);
-            if (sphere)
-            {
-                const glm::vec3& pos = sphere->GetWorldPosition();
-                hitgroupRecords[i].data.geometry.sphere.radius = sphere->GetRadius();
-                hitgroupRecords[i].data.geometry.sphere.position = { pos.x, pos.y, pos.z };
-                hitgroupRecords[i].data.material.basicMaterial.ka = { 1.0f, 0.0f, 1.0f };
-                hitgroupRecords[i].data.material.basicMaterial.kd = { 1.0f, 0.0f, 1.0f };
-                hitgroupRecords[i].data.material.basicMaterial.ks = { 1.0f, 0.0f, 1.0f };
-                hitgroupRecords[i].data.material.basicMaterial.alpha = 30.0f;
-                OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
-                ++sbtIndex;
-                ++i;
-                hitgroupRecords[i] = hitgroupRecords[i - 1];
-                OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
-                ++sbtIndex;
-                ++i;
-            }
-            break;
-        }
-        case ShapeType::PlaneType:
-        {
-            std::shared_ptr<Plane> plane = std::dynamic_pointer_cast<Plane>(shape);
-            if (plane)
-            {
-                const glm::vec3& pos = plane->GetWorldPosition();
-                const glm::vec3& normal = plane->GetNormal();
-                hitgroupRecords[i].data.geometry.plane.normal = { normal.x, normal.y, normal.z };
-                hitgroupRecords[i].data.geometry.plane.position = { pos.x, pos.y, pos.z };
-                hitgroupRecords[i].data.material.basicMaterial.ka = { 1.0f, 0.0f, 0.0f };
-                hitgroupRecords[i].data.material.basicMaterial.kd = { 1.0f, 0.0f, 0.0f };
-                hitgroupRecords[i].data.material.basicMaterial.ks = { 1.0f, 1.0f, 1.0f };
-                hitgroupRecords[i].data.material.basicMaterial.alpha = 30.0f;
-                OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
-                ++sbtIndex;
-                ++i;
-                hitgroupRecords[i] = hitgroupRecords[i - 1];
-                OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
-                ++i;
-            }
-            break;
-        }
-        default:
-            break;
-        }
+        shape->CopyToDevice(hitgroupRecords[i].data);
+        OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
+        ++sbtIndex;
+        ++i;
+        hitgroupRecords[i] = hitgroupRecords[i - 1];
+        OPTIX_CHECK(optixSbtRecordPackHeader(m_programs[sbtIndex], &hitgroupRecords[i]));
+        ++sbtIndex;
+        ++i;
     }
 
     // Now copy our host record to the device
@@ -624,12 +590,12 @@ void Renderer::BuildHitGroupRecords(int& sbtIndex)
     delete[] hitgroupRecords;
 }
 
-void Renderer::WriteLights(Params& params)
+void Renderer::WriteLights(device::Params& params)
 {
     const std::vector<PointLight>& lights = m_scene->GetLights();
     const size_t& nbLights = lights.size();
 
-    for (size_t i = 0; i < nbLights && i < Params::MAX_LIGHTS; ++i)
+    for (size_t i = 0; i < nbLights && i < device::Params::MAX_LIGHTS; ++i)
     {
         const glm::vec3& lightPos = lights[i].GetPosition();
         const glm::vec3& lightColor = lights[i].GetColor();
@@ -647,20 +613,19 @@ void Renderer::Launch()
 {
     std::cout << "RayTracinGO: launching OptiX ..." << std::endl;
     // Populate the per-launch params
-    Params params;
+    device::Params params;
     params.image = m_outputBuffer->map();
     params.image_width = m_windowWidth;
     params.image_height = m_windowHeight;
-    params.origin_x = m_windowWidth / 2;
-    params.origin_y = m_windowHeight / 2;
     params.samplePerPixel = 16;
     params.handle = m_traversableHandle;
+    params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
 
     WriteLights(params);
 
     // Transfer params to the device
     CUdeviceptr d_param;
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_param), sizeof(Params)));
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_param), sizeof(device::Params)));
     CUDA_CHECK(cudaMemcpy(
         reinterpret_cast<void*>(d_param),
         &params, sizeof(params),
@@ -669,10 +634,10 @@ void Renderer::Launch()
 
     // Launch now, passing our pipeline, lauch params and SBT
     // (for a high performance application you want to use streams and double-buffering)
-    OPTIX_CHECK(optixLaunch(m_pipeline, 
+    OPTIX_CHECK(optixLaunch(m_pipeline,
         m_cudaStream,
         d_param,
-        sizeof(Params),
+        sizeof(device::Params),
         &m_shaderBindingTable,
         m_windowWidth,
         m_windowHeight,
@@ -715,4 +680,5 @@ void Renderer::CleanUp()
     OPTIX_CHECK(optixModuleDestroy(m_module));
     OPTIX_CHECK(optixDeviceContextDestroy(m_optixContext));
 }
+} // namespace host
 } // namespace engine

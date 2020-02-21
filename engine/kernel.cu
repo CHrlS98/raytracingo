@@ -36,6 +36,8 @@
 
 namespace engine
 {
+namespace device
+{
 extern "C" {
     __constant__ Params params;
 }
@@ -43,17 +45,19 @@ extern "C" {
 
 static __forceinline__ __device__ void trace(
     OptixTraversableHandle handle,
-    float3                 ray_origin,
-    float3                 ray_direction,
-    float                  tmin,
-    float                  tmax,
-    float3*                prd
+    float3 ray_origin,
+    float3 ray_direction,
+    float tmin,
+    float tmax,
+    float3* prd,
+    int* depth
 )
 {
-    uint32_t p0, p1, p2;
+    uint32_t p0, p1, p2, p3;
     p0 = float_as_int(prd->x);
     p1 = float_as_int(prd->y);
     p2 = float_as_int(prd->z);
+    p3 = *depth;
     optixTrace(
         handle,
         ray_origin,
@@ -66,10 +70,11 @@ static __forceinline__ __device__ void trace(
         RAY_TYPE_RADIANCE,   // SBT offset
         RAY_TYPE_COUNT,      // SBT stride
         RAY_TYPE_RADIANCE,   // missSBTIndex
-        p0, p1, p2);
+        p0, p1, p2, p3);
     prd->x = int_as_float(p0);
     prd->y = int_as_float(p1);
     prd->z = int_as_float(p2);
+    *depth = p3 + 1;
 }
 
 
@@ -90,7 +95,7 @@ __forceinline__ __device__ uchar4 make_color(const float3&  c)
     );
 }
 
-static __device__ float3 TraceOcclusion(const float3& lightPos)
+static __device__ float3 traceOcclusion(const float3& lightPos)
 {
     const float3 origin = optixGetWorldRayOrigin();
     const float3 dir = optixGetWorldRayDirection();
@@ -146,12 +151,14 @@ extern "C" __global__ void __raygen__rg()
         const float3 origin = rtData->cam_eye;
         const float3 direction = normalize(d.x * U + d.y * V + W);
         float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
+        int depth = 0;
         trace(params.handle,
             origin,
             direction,
             0.00f,  // tmin
             1e16f,  // tmax
-            &payload_rgb);
+            &payload_rgb,
+            &depth);
 
         color += payload_rgb;
     }
@@ -259,6 +266,73 @@ extern "C" __global__ void __closesthit__ch()
     const float3& couleurAmbiante = material.ka;
     const float3& couleurDiffuse = material.kd;
     const float3& couleurSpeculaire = material.ks;
+    const float3& couleurReflexion = material.kr;
+
+    const float3 omega = -normalize(direction);
+
+    float3 color = {0.0f, 0.0f, 0.0f};
+
+    // vecteur reflechi
+    const float3 r = -omega + 2 * dot(N, omega) * N;
+    float3 prd = make_float3(
+        int_as_float(optixGetPayload_0()),
+        int_as_float(optixGetPayload_1()),
+        int_as_float(optixGetPayload_2())
+    );
+    int depth = optixGetPayload_3() + 1;
+
+    if (depth < params.maxTraceDepth)
+    {
+        trace(params.handle, x, r, 0.01f, 1e6f, &prd, &depth);
+        color += prd * couleurReflexion;
+    }
+
+    const int& nbLights = params.nbLights;
+    for (int i = 0; i < nbLights; ++i)
+    {
+        const float3 lightPos = params.lights[i].position;
+        const float3 attenuation = traceOcclusion(lightPos); 
+        const float3 lightColor = params.lights[i].color * attenuation;
+
+        // Modele d'illumination de Blinn
+        const float3 Lm = normalize(lightPos - x);
+        const float3 H = normalize(Lm + V);
+
+        const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
+        const float3 compDiffuse = max(dot(Lm, N), 0.0f) * lightColor * couleurDiffuse;
+        const float3 compSpeculaire = max(powf(dot(N, H), alpha), 0.0f) * lightColor * couleurSpeculaire;
+
+        color += compAmbiante + compDiffuse + compSpeculaire;
+    }
+
+    setPayload(color);
+}
+
+extern "C" __global__ void __closesthit__reflection()
+{
+    const float3 normale =
+        make_float3(
+            int_as_float(optixGetAttribute_0()),
+            int_as_float(optixGetAttribute_1()),
+            int_as_float(optixGetAttribute_2())
+        );
+    const float3 N = normalize(normale);
+
+    const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+    const BasicMaterial& material = hgData->material.basicMaterial;
+
+    const float t = optixGetRayTmax();
+    const float3 origin = optixGetWorldRayOrigin();
+    const float3 direction = optixGetWorldRayDirection();
+    const float3 x = origin + t * normalize(direction);
+    const float3 V = normalize(origin - x);
+
+    const float3 lumiereAmbiante = params.ambientLight;
+
+    const float& alpha = material.alpha;
+    const float3& couleurAmbiante = material.ka;
+    const float3& couleurDiffuse = material.kd;
+    const float3& couleurSpeculaire = material.ks;
 
     float3 color = { 0.0f, 0.0f, 0.0f };
 
@@ -266,7 +340,7 @@ extern "C" __global__ void __closesthit__ch()
     for (int i = 0; i < nbLights; ++i)
     {
         const float3 lightPos = params.lights[i].position;
-        const float3 attenuation = TraceOcclusion(lightPos); 
+        const float3 attenuation = traceOcclusion(lightPos);
         const float3 lightColor = params.lights[i].color * attenuation;
 
         // Modele d'illumination de Blinn
@@ -288,5 +362,5 @@ extern "C" __global__ void __closesthit__full_occlusion()
     // materiel 100% opaque
     setPayload({ 0.0f, 0.0f, 0.0f });
 }
-
+} // namespace host
 } // namespace engine

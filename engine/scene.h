@@ -6,6 +6,8 @@
 
 namespace engine 
 {
+namespace host
+{
 class IShape;
 class PointLight;
 
@@ -26,5 +28,5 @@ private:
     std::vector<PointLight> m_lights;
     glm::vec3 m_ambientLight;
 };
-
+}
 } // namespace engine
