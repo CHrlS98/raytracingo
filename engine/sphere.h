@@ -17,10 +17,8 @@ public:
 
     virtual void CopyToDevice(device::HitGroupData& data) const override;
 
+    /// Getters
     inline float GetRadius() const { return m_radius; }
-    ShapeType GetShapeType() const override { return m_type; }
-    glm::vec3 GetWorldPosition() const override { return m_worldPosition; }
-    OptixAabb GetAabb() const override { return m_boundingBox; }
 
 protected:
     virtual void BuildAabb() override;

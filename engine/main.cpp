@@ -47,8 +47,8 @@ void printUsageAndExit( const char* argv0 )
 int main( int argc, char* argv[] )
 {
     std::string outfile;
-    int width  = 1024;
-    int height =  768;
+    int width  = 1920;
+    int height =  1200;
 
     for( int i = 1; i < argc; ++i )
     {
@@ -82,8 +82,8 @@ int main( int argc, char* argv[] )
 
     try
     {
-        auto scene = std::make_shared<engine::host::Scene>();
-        engine::host::Renderer renderer = engine::host::Renderer(scene, width, height);
+        auto scene = std::make_shared<engine::host::Scene>(width, height);
+        engine::host::Renderer renderer = engine::host::Renderer(scene);
         renderer.Launch();
         renderer.Display(outfile);
     }

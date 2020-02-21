@@ -10,7 +10,7 @@ const std::string INTERSECTION_PROGRAM = "__intersection__plane";
 }
 
 Plane::Plane(const glm::vec3& position, const glm::vec3& normal, const BasicMaterial& material)
-    : IShape(ShapeType::PlaneType, position, material, INTERSECTION_PROGRAM)
+    : IShape(position, material, INTERSECTION_PROGRAM)
     , m_normal(normal)
 {
     BuildAabb();

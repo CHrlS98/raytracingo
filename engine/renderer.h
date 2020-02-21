@@ -39,16 +39,13 @@ typedef ShaderBindingTableRecord<device::HitGroupData> HitGroupSbtRecord;
 class Renderer
 {
 public:
-    Renderer(std::shared_ptr<Scene> scene, const int width, const int height);
+    Renderer(std::shared_ptr<Scene> scene);
     ~Renderer();
 
     void Launch();
     void Display(std::string outfile);
 
 private:
-    int m_windowWidth;
-    int m_windowHeight;
-
     OptixDeviceContext m_optixContext;
     OptixModule m_module;
     OptixModuleCompileOptions m_moduleCompileOptions;
