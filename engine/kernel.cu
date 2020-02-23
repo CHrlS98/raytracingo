@@ -47,6 +47,7 @@ static __forceinline__ __device__ void trace(
     OptixTraversableHandle handle,
     float3 ray_origin,
     float3 ray_direction,
+    RayType rayType,
     float tmin,
     float tmax,
     float3* prd,
@@ -67,14 +68,13 @@ static __forceinline__ __device__ void trace(
         0.0f,                // rayTime
         OptixVisibilityMask(1),
         OPTIX_RAY_FLAG_NONE,
-        RAY_TYPE_RADIANCE,   // SBT offset
+        rayType,   // SBT offset
         RAY_TYPE_COUNT,      // SBT stride
-        RAY_TYPE_RADIANCE,   // missSBTIndex
+        rayType,   // missSBTIndex
         p0, p1, p2, p3);
     prd->x = int_as_float(p0);
     prd->y = int_as_float(p1);
     prd->z = int_as_float(p2);
-    *depth = p3 + 1;
 }
 
 
@@ -95,37 +95,6 @@ __forceinline__ __device__ uchar4 make_color(const float3&  c)
     );
 }
 
-static __device__ float3 traceOcclusion(const float3& lightPos)
-{
-    const float3 origin = optixGetWorldRayOrigin();
-    const float3 dir = optixGetWorldRayDirection();
-    const float  t = optixGetRayTmax();
-
-    const float3 hitPoint = origin + t * dir;
-
-    const float lightDistance = length(lightPos - hitPoint);
-    const float3 directionToLight = normalize(lightPos - hitPoint);
-
-    float3 attenuation = make_float3(1.0f);
-
-    optixTrace(
-        params.handle,
-        hitPoint,
-        directionToLight,
-        0.01f,
-        lightDistance - 0.01f,
-        0.0f,
-        OptixVisibilityMask(1),
-        OPTIX_RAY_FLAG_NONE,
-        RAY_TYPE_OCCLUSION,
-        RAY_TYPE_COUNT,
-        RAY_TYPE_OCCLUSION,
-        reinterpret_cast<uint32_t&>(attenuation.x),
-        reinterpret_cast<uint32_t&>(attenuation.y),
-        reinterpret_cast<uint32_t&>(attenuation.z));
-    return attenuation;
-}
-
 extern "C" __global__ void __raygen__rg()
 {
     // lookup our location within the launch grid
@@ -143,7 +112,7 @@ extern "C" __global__ void __raygen__rg()
     const float3      V = rtData->camera_v;
     const float3      W = rtData->camera_w;
 
-    unsigned int seed = idx.y;
+    unsigned int seed = idx.y + idx.x;
     float3 color = { 0.0f, 0.0f, 0.0f };
     for (int i = 0; i < params.samplePerPixel; i++)
     {
@@ -155,6 +124,7 @@ extern "C" __global__ void __raygen__rg()
         trace(params.handle,
             origin,
             direction,
+            RAY_TYPE_RADIANCE,
             0.00f,  // tmin
             1e16f,  // tmax
             &payload_rgb,
@@ -274,16 +244,12 @@ extern "C" __global__ void __closesthit__ch()
 
     // vecteur reflechi
     const float3 r = -omega + 2 * dot(N, omega) * N;
-    float3 prd = make_float3(
-        int_as_float(optixGetPayload_0()),
-        int_as_float(optixGetPayload_1()),
-        int_as_float(optixGetPayload_2())
-    );
+    float3 prd = { 0.0f, 0.0f, 0.0f };
     int depth = optixGetPayload_3() + 1;
 
     if (depth < params.maxTraceDepth)
     {
-        trace(params.handle, x, r, 0.01f, 1e6f, &prd, &depth);
+        trace(params.handle, x, r, RAY_TYPE_RADIANCE, 0.01f, 1e6f, &prd, &depth);
         color += prd * couleurReflexion;
     }
 
@@ -291,61 +257,15 @@ extern "C" __global__ void __closesthit__ch()
     for (int i = 0; i < nbLights; ++i)
     {
         const float3 lightPos = params.lights[i].position;
-        const float3 attenuation = traceOcclusion(lightPos); 
-        const float3 lightColor = params.lights[i].color * attenuation;
 
         // Modele d'illumination de Blinn
         const float3 Lm = normalize(lightPos - x);
+        const float lightDistance = length(lightPos - x);
         const float3 H = normalize(Lm + V);
 
-        const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
-        const float3 compDiffuse = max(dot(Lm, N), 0.0f) * lightColor * couleurDiffuse;
-        const float3 compSpeculaire = max(powf(dot(N, H), alpha), 0.0f) * lightColor * couleurSpeculaire;
-
-        color += compAmbiante + compDiffuse + compSpeculaire;
-    }
-
-    setPayload(color);
-}
-
-extern "C" __global__ void __closesthit__reflection()
-{
-    const float3 normale =
-        make_float3(
-            int_as_float(optixGetAttribute_0()),
-            int_as_float(optixGetAttribute_1()),
-            int_as_float(optixGetAttribute_2())
-        );
-    const float3 N = normalize(normale);
-
-    const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
-    const BasicMaterial& material = hgData->material.basicMaterial;
-
-    const float t = optixGetRayTmax();
-    const float3 origin = optixGetWorldRayOrigin();
-    const float3 direction = optixGetWorldRayDirection();
-    const float3 x = origin + t * normalize(direction);
-    const float3 V = normalize(origin - x);
-
-    const float3 lumiereAmbiante = params.ambientLight;
-
-    const float& alpha = material.alpha;
-    const float3& couleurAmbiante = material.ka;
-    const float3& couleurDiffuse = material.kd;
-    const float3& couleurSpeculaire = material.ks;
-
-    float3 color = { 0.0f, 0.0f, 0.0f };
-
-    const int& nbLights = params.nbLights;
-    for (int i = 0; i < nbLights; ++i)
-    {
-        const float3 lightPos = params.lights[i].position;
-        const float3 attenuation = traceOcclusion(lightPos);
+        float3 attenuation = { 1.0f, 1.0f, 1.0f };
+        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, 0.01f, lightDistance - 0.01f, &attenuation, &depth);
         const float3 lightColor = params.lights[i].color * attenuation;
-
-        // Modele d'illumination de Blinn
-        const float3 Lm = normalize(lightPos - x);
-        const float3 H = normalize(Lm + V);
 
         const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
         const float3 compDiffuse = max(dot(Lm, N), 0.0f) * lightColor * couleurDiffuse;

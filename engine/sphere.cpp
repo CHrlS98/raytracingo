@@ -10,14 +10,14 @@ const std::string INTERSECTION_PROGRAM = "__intersection__sphere";
 }
 
 Sphere::Sphere()
-    :IShape(ShapeType::SphereType, glm::vec3(0.0f), BasicMaterial(), INTERSECTION_PROGRAM)
+    :IShape(glm::vec3(0.0f), BasicMaterial(), INTERSECTION_PROGRAM)
     , m_radius(1.0f)
 {
     BuildAabb();
 }
 
 Sphere::Sphere(const glm::vec3& worldPosition, const float radius, const BasicMaterial& material)
-    : IShape(ShapeType::SphereType, worldPosition, material, INTERSECTION_PROGRAM)
+    : IShape(worldPosition, material, INTERSECTION_PROGRAM)
     ,m_radius(radius)
 {
     BuildAabb();

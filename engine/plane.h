@@ -14,11 +14,8 @@ public:
     ~Plane() = default;
 
     virtual void CopyToDevice(device::HitGroupData& data) const override;
-
-    inline ShapeType GetShapeType() const override { return m_type; }
-    inline glm::vec3 GetWorldPosition() const override { return m_worldPosition; }
-    inline OptixAabb GetAabb() const override { return m_boundingBox; }
-
+    
+    /// Getters
     inline glm::vec3 GetNormal() const { return m_normal; }
 
 protected:
