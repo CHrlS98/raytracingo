@@ -123,8 +123,8 @@ struct Params
     uint32_t image_width;
     /// hauteur de l'image a generer
     uint32_t image_height;
-    /// Nombre d'echantillons par pixels
-    int32_t samplePerPixel;
+    /// Cette variable au carre correspond au nombre d'echantillons par pixels
+    int32_t sqrtSamplePerPixel;
     /// Nombre de lumieres dans la scene
     int nbLights; 
     /// Nombre maximum de recursions pour le calcul des reflexions
