@@ -146,7 +146,7 @@ extern "C" __global__ void __raygen__rg()
             color += payload_rgb;
         }
     }
-    params.image[idx.y * params.image_width + idx.x] = make_color(color / static_cast<float>(params.sqrtSamplePerPixel * params.sqrtSamplePerPixel));
+    params.image[idx.y * params.image_width + idx.x] = make_color(color / static_cast<float>(sqrtSamplePerPixel * sqrtSamplePerPixel));
 }
 
 
