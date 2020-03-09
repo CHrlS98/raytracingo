@@ -563,7 +563,7 @@ void Renderer::Launch()
     params.image = m_outputBuffer->map();
     params.image_width = m_scene->GetCameraWidth();
     params.image_height = m_scene->GetCameraHeight();
-    params.samplePerPixel = 16;
+    params.sqrtSamplePerPixel = 6;
     params.handle = m_traversableHandle;
     params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
 

@@ -112,27 +112,41 @@ extern "C" __global__ void __raygen__rg()
     const float3      V = rtData->camera_v;
     const float3      W = rtData->camera_w;
 
-    unsigned int seed = idx.y + idx.x;
+    unsigned int seedX = idx.y + idx.x + 1;
+    unsigned int seedY = idx.y/(idx.x + 1) + 1;
     float3 color = { 0.0f, 0.0f, 0.0f };
-    for (int i = 0; i < params.samplePerPixel; i++)
-    {
-        const float2 d = 2.0f * make_float2((x + rnd(seed)) / dimX, (y + rnd(seed)) / dimY) - 1.0f;
-        const float3 origin = rtData->cam_eye;
-        const float3 direction = normalize(d.x * U + d.y * V + W);
-        float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
-        int depth = 0;
-        trace(params.handle,
-            origin,
-            direction,
-            RAY_TYPE_RADIANCE,
-            0.00f,  // tmin
-            1e16f,  // tmax
-            &payload_rgb,
-            &depth);
+    const uint32_t sqrtSamplePerPixel = params.sqrtSamplePerPixel;
 
-        color += payload_rgb;
+    for (unsigned int i = 0; i < sqrtSamplePerPixel; ++i)
+    {
+        for (unsigned int j = 0; j < sqrtSamplePerPixel; ++j)
+        {
+            const float offsetIncrement = 1.0f / static_cast<float>(sqrtSamplePerPixel);
+            const float fi = static_cast<float>(i);
+            const float fj = static_cast<float>(j);
+
+            const float2 d = 2.0f * make_float2(
+                (x + (fi + 0.5 * (rnd(seedX) + 1.0f))* offsetIncrement) / dimX, 
+                (y + (fj + 0.5 * (rnd(seedY) + 1.0f)) * offsetIncrement) / dimY
+            ) - 1.0f;
+
+            const float3 origin = rtData->cam_eye;
+            const float3 direction = normalize(d.x * U + d.y * V + W);
+            float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
+            int depth = 0;
+            trace(params.handle,
+                origin,
+                direction,
+                RAY_TYPE_RADIANCE,
+                0.00f,  // tmin
+                1e16f,  // tmax
+                &payload_rgb,
+                &depth);
+
+            color += payload_rgb;
+        }
     }
-    params.image[idx.y * params.image_width + idx.x] = make_color(color / static_cast<float>(params.samplePerPixel));
+    params.image[idx.y * params.image_width + idx.x] = make_color(color / static_cast<float>(sqrtSamplePerPixel * sqrtSamplePerPixel));
 }
 
 
