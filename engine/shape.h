@@ -1,7 +1,7 @@
 #pragma once
 
 #include <optix.h>
-#include <renderer.h>
+#include <params.h>
 #include <basicmaterial.h>
 
 #include <glm/vec3.hpp>
@@ -11,12 +11,6 @@ namespace engine
 {
 namespace host
 {
-enum ShapeType
-{
-    SphereType,
-    PlaneType
-};
-
 class IShape
 {
 public:

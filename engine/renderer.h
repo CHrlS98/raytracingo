@@ -24,18 +24,6 @@ enum LogCallbackLevel
     Print = 4       // Status or progress messages
 };
 
-template <typename T>
-struct ShaderBindingTableRecord
-{
-    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
-    T data;
-};
-
-// These Data are defined in the params.h
-typedef ShaderBindingTableRecord<device::CameraData> CameraSbtRecord;
-typedef ShaderBindingTableRecord<device::MissData> MissSbtRecord;
-typedef ShaderBindingTableRecord<device::HitGroupData> HitGroupSbtRecord;
-
 class Renderer
 {
 public:
@@ -67,28 +55,28 @@ private:
     CUdeviceptr m_deviceGasOutputBuffer;
     OptixTraversableHandle m_traversableHandle;
 
-    /// Initialise CUDA et l'API d'OptiX 
+    void Initialize();
+
     void InitOptix();
-
-    /// Creer un contexte OptiX associe a un seul 
-    /// GPU et un seul contexte CUDA
     void CreateContext();
-
-    /// 
     void CreateModule();
-    void CreateRayGenerationPrograms();
-    void CreateMissPrograms();
-    void CreateHitGroupPrograms();
 
-    void BuildAccelerationStructure();
-    void CreatePipeline();
-    void BuildShaderBindingTable();
+    void CreateRayGen();
+    void CreateMiss();
+    void CreateShapes();
 
-    void BuildRayGenerationRecords(int& sbtIndex);
-    void BuildMissRecords(int& sbtIndex);
-    void BuildHitGroupRecords(int& sbtIndex);
+    OptixProgramGroup CreateRayGenPrograms() const;
+    OptixProgramGroup CreateMissPrograms();
+    OptixProgramGroup CreateHitGroupProgram(const std::shared_ptr<IShape> shape, device::RayType type);
+
+    void BuildRayGenRecords(CameraSbtRecord* records, const size_t& recordsCount);
+    void BuildMissRecords(MissSbtRecord* records, const size_t& recordsCount);
+    void BuildHitGroupRecords(HitGroupSbtRecord* records, const size_t& recordsCount);
+
+    void BuildAccelerationStructure(OptixAabb* aabb, uint32_t* aabbInputFlags, uint32_t* sbtIndex, const size_t& nbObjects);
 
     void WriteLights(device::Params& params);
+    void CreatePipeline();
 
     void CleanUp();
 };
