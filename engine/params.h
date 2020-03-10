@@ -25,6 +25,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
+#pragma once
 
 #include <stdint.h>
 #include <device_types.h>
@@ -137,4 +138,18 @@ struct Params
     OptixTraversableHandle handle;
 };
 } // namespace device
+
+namespace host
+{
+template <typename T>
+struct ShaderBindingTableRecord
+{
+    __align__(OPTIX_SBT_RECORD_ALIGNMENT) char header[OPTIX_SBT_RECORD_HEADER_SIZE];
+    T data;
+};
+
+typedef ShaderBindingTableRecord<device::CameraData> CameraSbtRecord;
+typedef ShaderBindingTableRecord<device::MissData> MissSbtRecord;
+typedef ShaderBindingTableRecord<device::HitGroupData> HitGroupSbtRecord;
+} // namespace host
 } // namespace engine
