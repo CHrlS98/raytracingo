@@ -46,9 +46,8 @@ void printUsageAndExit( const char* argv0 )
 
 int main( int argc, char* argv[] )
 {
-    std::string outfile;
-    int width  = 1920;
-    int height =  1200;
+    int width  = 600;
+    int height =  600;
 
     for( int i = 1; i < argc; ++i )
     {
@@ -56,17 +55,6 @@ int main( int argc, char* argv[] )
         if( arg == "--help" || arg == "-h" )
         {
             printUsageAndExit( argv[0] );
-        }
-        else if( arg == "--file" || arg == "-f" )
-        {
-            if( i < argc - 1 )
-            {
-                outfile = argv[++i];
-            }
-            else
-            {
-                printUsageAndExit( argv[0] );
-            }
         }
         else if( arg.substr( 0, 6 ) == "--dim=" )
         {
@@ -84,8 +72,7 @@ int main( int argc, char* argv[] )
     {
         auto scene = std::make_shared<engine::host::Scene>(width, height);
         engine::host::Renderer renderer = engine::host::Renderer(scene);
-        renderer.Launch();
-        renderer.Display(outfile);
+        renderer.Display();
     }
     catch( std::exception& e )
     {

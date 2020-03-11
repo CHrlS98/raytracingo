@@ -30,8 +30,7 @@ public:
     Renderer(std::shared_ptr<Scene> scene);
     ~Renderer();
 
-    void Launch();
-    void Display(std::string outfile);
+    void Display();
 
 private:
     OptixDeviceContext m_optixContext;
@@ -51,7 +50,6 @@ private:
 
     std::shared_ptr<Scene> m_scene;
 
-    std::shared_ptr<sutil::CUDAOutputBuffer<uchar4>> m_outputBuffer;
     CUdeviceptr m_deviceGasOutputBuffer;
     OptixTraversableHandle m_traversableHandle;
 
@@ -77,6 +75,8 @@ private:
 
     void WriteLights(device::Params& params);
     void CreatePipeline();
+
+    void LaunchFrame(sutil::CUDAOutputBuffer<uchar4>& outputBuffer, device::Params& params, device::Params* d_params);
 
     void CleanUp();
 };

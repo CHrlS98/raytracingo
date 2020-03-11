@@ -2,6 +2,7 @@
 
 #include <sutil/Exception.h>
 #include <sutil/Camera.h>
+#include <sutil/GLDisplay.h>
 #include <optix_stubs.h>
 #include <sutil/sutil.h>
 
@@ -13,6 +14,12 @@
 #include <iostream>
 #include <iomanip>
 #include <memory>
+
+#include <GLFW/glfw3.h>
+#include <glad/glad.h>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_glfw.h>
+#include <imgui/imgui_impl_opengl3.h>
 
 namespace engine
 {
@@ -45,7 +52,6 @@ Renderer::Renderer(std::shared_ptr<Scene> scene)
     , m_cudaDeviceProperties({})
     , m_programs()
     , m_shaderBindingTable({})
-    , m_outputBuffer(nullptr)
     , m_deviceGasOutputBuffer(0)
     , m_traversableHandle(0)
     , m_scene(scene)
@@ -60,14 +66,6 @@ Renderer::~Renderer()
 
 void Renderer::Initialize()
 {
-    m_outputBuffer.reset(
-        new sutil::CUDAOutputBuffer<uchar4>(
-            sutil::CUDAOutputBufferType::CUDA_DEVICE,
-            m_scene->GetCameraWidth(),
-            m_scene->GetCameraHeight()
-            )
-    );
-
     InitOptix();
     CreateContext();
     CreateModule();
@@ -578,60 +576,87 @@ void Renderer::WriteLights(device::Params& params)
     params.nbLights = static_cast<int>(nbLights);
 }
 
-void Renderer::Launch()
+void Renderer::LaunchFrame(sutil::CUDAOutputBuffer<uchar4>& outputBuffer, device::Params& params, device::Params* d_params)
 {
-    std::cout << "RayTracinGO: launching OptiX ..." << std::endl;
-    // Populate the per-launch params
-    device::Params params;
-    params.image = m_outputBuffer->map();
-    params.image_width = m_scene->GetCameraWidth();
-    params.image_height = m_scene->GetCameraHeight();
-    params.sqrtSamplePerPixel = 6;
-    params.handle = m_traversableHandle;
-    params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
-
-    WriteLights(params);
-
-    // Transfer params to the device
-    CUdeviceptr d_param;
-    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_param), sizeof(device::Params)));
-    CUDA_CHECK(cudaMemcpy(
-        reinterpret_cast<void*>(d_param),
-        &params, sizeof(params),
-        cudaMemcpyKind::cudaMemcpyHostToDevice
+    uchar4* result_buffer_data = outputBuffer.map();
+    params.image = result_buffer_data;
+    CUDA_CHECK(cudaMemcpyAsync(reinterpret_cast<void*>(d_params),
+        &params,
+        sizeof(device::Params),
+        cudaMemcpyHostToDevice,
+        m_cudaStream
     ));
 
     // Launch now, passing our pipeline, lauch params and SBT
     // (for a high performance application you want to use streams and double-buffering)
-    OPTIX_CHECK(optixLaunch(m_pipeline,
+    OPTIX_CHECK(optixLaunch(
+        m_pipeline,
         m_cudaStream,
-        d_param,
+        reinterpret_cast<CUdeviceptr>(d_params),
         sizeof(device::Params),
         &m_shaderBindingTable,
-        m_scene->GetCameraWidth(),
-        m_scene->GetCameraHeight(),
+        params.image_width,
+        params.image_height,
         1 /*depth=*/));
-    CUDA_SYNC_CHECK();
 
     // Rendered results are now in params.image
-    m_outputBuffer->unmap();
+    outputBuffer.unmap();
+    CUDA_SYNC_CHECK();
 }
 
-void Renderer::Display(std::string outfile)
+void Renderer::Display()
 {
-    sutil::ImageBuffer buffer;
-    buffer.data = m_outputBuffer->getHostPointer();
-    buffer.width = m_scene->GetCameraWidth();
-    buffer.height = m_scene->GetCameraHeight();
-    buffer.pixel_format = sutil::BufferImageFormat::UNSIGNED_BYTE4;
-    if (outfile.empty())
+    unsigned int width = m_scene->GetCameraWidth();
+    unsigned int height = m_scene->GetCameraHeight();
+
+    // Populate the per-launch params
+    device::Params params;
+    params.image = nullptr;
+    params.image_width = width;
+    params.image_height = height;
+    params.sqrtSamplePerPixel = 6;
+    params.handle = m_traversableHandle;
+    params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
+    WriteLights(params);
+
+    // Transfer params to the device
+    device::Params* d_params = nullptr;
+    CUDA_CHECK(cudaMalloc(reinterpret_cast<void**>(&d_params), sizeof(device::Params)));
+
+    // Initialize our window and UI
+    GLFWwindow* window = sutil::initGLFW("RayTracinGO", width, height);
+    sutil::initGL();
+    sutil::initImGui(window);
+
+    sutil::CUDAOutputBuffer<uchar4> outputBuffer(sutil::CUDAOutputBufferType::CUDA_DEVICE, width, height);
+    outputBuffer.setStream(m_cudaStream);
+    
+    sutil::GLDisplay display;
+    int framebuf_res_x = 0;
+    int framebuf_res_y = 0;
+    unsigned int frameCount = 0;
+
+    do
     {
-        sutil::displayBufferWindow("RayTracinGO", buffer);
-    }
-    else
-    {
-        sutil::displayBufferFile(outfile.c_str(), buffer, false);
-    }
+        glfwPollEvents();
+        // Where we launch our rays
+        LaunchFrame(outputBuffer, params, d_params);
+
+        // Display the frame
+        glfwGetFramebufferSize(window, &framebuf_res_x, &framebuf_res_y);
+        display.display(outputBuffer.width(), outputBuffer.height(), framebuf_res_x, framebuf_res_y, outputBuffer.getPBO());
+
+        // Display the current Framerate
+        sutil::beginFrameImGui();
+        sutil::displayFPS(frameCount++);
+        sutil::endFrameImGui();
+
+        glfwSwapBuffers(window);
+
+    } while (!glfwWindowShouldClose(window));
+
+    glfwDestroyWindow(window);
+    glfwTerminate();
 }
 
 void Renderer::CleanUp()
