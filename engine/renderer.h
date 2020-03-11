@@ -50,7 +50,6 @@ private:
 
     std::shared_ptr<Scene> m_scene;
 
-    std::shared_ptr<sutil::CUDAOutputBuffer<uchar4>> m_outputBuffer;
     CUdeviceptr m_deviceGasOutputBuffer;
     OptixTraversableHandle m_traversableHandle;
 

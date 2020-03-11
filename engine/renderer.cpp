@@ -52,7 +52,6 @@ Renderer::Renderer(std::shared_ptr<Scene> scene)
     , m_cudaDeviceProperties({})
     , m_programs()
     , m_shaderBindingTable({})
-    , m_outputBuffer(nullptr)
     , m_deviceGasOutputBuffer(0)
     , m_traversableHandle(0)
     , m_scene(scene)
@@ -67,14 +66,6 @@ Renderer::~Renderer()
 
 void Renderer::Initialize()
 {
-    m_outputBuffer.reset(
-        new sutil::CUDAOutputBuffer<uchar4>(
-            sutil::CUDAOutputBufferType::CUDA_DEVICE,
-            m_scene->GetCameraWidth(),
-            m_scene->GetCameraHeight()
-            )
-    );
-
     InitOptix();
     CreateContext();
     CreateModule();
