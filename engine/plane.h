@@ -1,5 +1,5 @@
 #pragma once
-#include <shape.h>
+#include <ishape.h>
 #include <glm/vec3.hpp>
 
 namespace engine

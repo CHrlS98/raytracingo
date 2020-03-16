@@ -269,6 +269,8 @@ extern "C" __global__ void __intersection__rectangle()
 
 extern "C" __global__ void __closesthit__ch()
 {
+    const float rayEpsilon = 1e-5f;
+
     const float3 normale =
         make_float3(
             int_as_float(optixGetAttribute_0()),
@@ -306,7 +308,7 @@ extern "C" __global__ void __closesthit__ch()
     if (depth < params.maxTraceDepth && 
         (couleurReflexion.x > 0.f || couleurReflexion.y > 0.f || couleurReflexion.z > 0.f))
     {
-        trace(params.handle, x, r, RAY_TYPE_RADIANCE, 1e-5f, 1e6f, &prd, &depth);
+        trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth);
         color += prd * couleurReflexion;
     }
 
@@ -321,12 +323,12 @@ extern "C" __global__ void __closesthit__ch()
         const float3 H = normalize(Lm + V);
 
         float3 attenuation = { 1.0f, 1.0f, 1.0f };
-        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, 1e-5f, lightDistance - 0.01f, &attenuation, &depth);
+        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, rayEpsilon, lightDistance - rayEpsilon, &attenuation, &depth);
         const float3 lightColor = params.lights[i].color * attenuation;
 
         const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
-        const float3 compDiffuse = max(dot(Lm, N), 0.0f) * lightColor * couleurDiffuse;
-        const float3 compSpeculaire = max(powf(dot(N, H), alpha), 0.0f) * lightColor * couleurSpeculaire;
+        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(dot(Lm, N), 0.0f) * lightColor * couleurDiffuse;
+        const float3 compSpeculaire = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(powf(dot(N, H), alpha), 0.0f) * lightColor * couleurSpeculaire;
 
         color += compAmbiante + compDiffuse + compSpeculaire;
     }

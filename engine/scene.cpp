@@ -29,7 +29,7 @@ void Scene::SetupObjects()
 {
     BasicMaterial yellow(
         glm::vec3(1.0f, 1.0f, 0.0f), // ka
-        glm::vec3(0.0f, 0.0f, 0.0f), // kd
+        glm::vec3(1.0f, 1.0f, 0.0f), // kd
         glm::vec3(1.0f, 1.0f, 1.0f), // ks
         glm::vec3(0.2f, 0.2f, 0.2f), // kr
         30.0f                        // alpha
@@ -68,34 +68,34 @@ void Scene::SetupObjects()
     );
 
     BasicMaterial white(
-        glm::vec3(0.6f, 0.6f, 0.6f), // ka
-        glm::vec3(0.6f, 0.6f, 0.6f), // kd
+        glm::vec3(0.8f, 0.8f, 0.8f), // ka
+        glm::vec3(0.8f, 0.8f, 0.8f), // kd
         glm::vec3(1.0f, 1.0f, 1.0f), // ks
         glm::vec3(0.2f, 0.2f, 0.2f), // kr
         30.0f                        // alpha
     );
 
-    m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(0.0, 0.0f, 0.0f), 0.8f, yellow)));
-    //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(0.0f, 0.0f, -2.0f), 0.8f, purple)));
-    //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(2.0f, 2.0f, -1.0f), 1.0f, cyan)));
-    //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(-2.0f, 2.0f, -1.0f), 1.2f, white)));
+    // spheres
+    m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(0.0, 0.0f, 2.0f), 0.8f, yellow)));
+    m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(0.0f, 0.0f, -2.0f), 0.8f, purple)));
+    m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(2.0f, 2.0f, -1.0f), 1.0f, cyan)));
+    m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(-2.0f, -2.0f, -1.0f), 1.2f, white)));
 
     // boite
     m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(-4.0f, -4.0f, 4.0f), darkRed)));
-    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(-4.0f, -4.0f, 4.0f), blackMirror)));
-    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(-4.0f, -4.0f, -4.0f), blackMirror)));
-    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(4.0f, -4.0f, 4.0f), blackMirror)));
-    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(-4.0f, 4.0f, 4.0f), cyan)));
-    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(-4.0f, -4.0f, 4.0f), blackMirror)));
+    m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(-4.0f, -4.0f, 4.0f), blackMirror)));
+    m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(-4.0f, -4.0f, -4.0f), blackMirror)));
+    m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(4.0f, -4.0f, 4.0f), blackMirror)));
+    m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(-4.0f, 4.0f, 4.0f), cyan)));
+    m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(-4.0f, -4.0f, 4.0f), blackMirror)));
 
 }
 
 void Scene::SetupLights()
 {
-    m_ambientLight = { 0.4, 0.4, 0.4 };
+    m_ambientLight = { 0.5, 0.5, 0.5 };
 
     m_lights.push_back(PointLight({ 3.0, 3.0, -3.0 }, { 0.6, 0.6, 0.6 }));
-    m_lights.push_back(PointLight({ 0.0, 20.0, 0.0 }, { 0.6, 0.6, 0.6 }));
 }
 
 void Scene::SetupCamera()

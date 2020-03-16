@@ -1,8 +1,5 @@
 #pragma once
-
-#include <memory>
-
-#include <shape.h>
+#include <ishape.h>
 
 namespace engine
 {
