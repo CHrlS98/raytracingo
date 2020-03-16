@@ -4,6 +4,7 @@
 #include <params.h>
 
 #include <sutil/CUDAOutputBuffer.h>
+#include <sutil/Trackball.h>
 #include <optix.h>
 
 #include <vector>
@@ -15,6 +16,16 @@ namespace engine
 {
 namespace host
 {
+
+struct RendererState
+{
+    device::Params* params;
+    std::shared_ptr<sutil::Trackball> trackball;
+    bool cameraChangedFlag;
+    bool windowResizeFlag;
+    int mouseButton;
+};
+
 enum LogCallbackLevel
 {
     Disable = 0,    // Setting the callback level will disable all messages.The callback function will not be called in this case
@@ -53,6 +64,8 @@ private:
     CUdeviceptr m_deviceGasOutputBuffer;
     OptixTraversableHandle m_traversableHandle;
 
+    RendererState m_state;
+
     void Initialize();
 
     void InitOptix();
@@ -76,7 +89,13 @@ private:
     void WriteLights(device::Params& params);
     void CreatePipeline();
 
-    void LaunchFrame(sutil::CUDAOutputBuffer<uchar4>& outputBuffer, device::Params& params, device::Params* d_params);
+    void Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer);
+    void UpdateCamera();
+    void SyncCameraToSbt(device::CameraData& data);
+    void ResizeCUDABuffer(sutil::CUDAOutputBuffer<uchar4>* outputBuffer);
+
+    void LaunchFrame(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params, device::Params* d_params);
+    void InitGLFWCallbacks(GLFWwindow* window, RendererState* state);
 
     void CleanUp();
 };

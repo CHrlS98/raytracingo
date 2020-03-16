@@ -224,6 +224,48 @@ extern "C" __global__ void __intersection__plane()
     }
 }
 
+extern "C" __global__ void __intersection__rectangle()
+{
+    const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+    const RectangleData& rectangle = hg_data->geometry.rectangle;
+
+    const float3 o = optixGetWorldRayOrigin();
+    const float3 dir = optixGetWorldRayDirection();
+    const float3 l = normalize(dir);
+
+    const float3 p0 = rectangle.p0;
+    const float3 n = normalize(cross(rectangle.a, rectangle.b));
+
+    float divisor = dot(l, n);
+    if (divisor != 0.0f)
+    {
+        const float t = dot(p0 - o, n) / divisor;
+        if (t > 0.0f)
+        {
+            const float3 p = o + t * l;
+            const float3 a = rectangle.a;
+
+            if (0 - 0.01f <= dot(p - p0, a) && dot(p - p0, a) <= dot(a, a) + 0.01f)
+            {
+                const float3 b = rectangle.b;
+                if (0 -0.01f <= dot(p - p0, b) && dot(p - p0, b) <= dot(b, b) + 0.01f)
+                {
+                    unsigned int nx, ny, nz;
+                    nx = float_as_int(n.x);
+                    ny = float_as_int(n.y);
+                    nz = float_as_int(n.z);
+            
+                    optixReportIntersection(
+                        t,      // t hit
+                        0,      // user hit kind
+                        nx, ny, nz
+                    );
+                }
+            }
+        }
+    }
+}
+
 
 extern "C" __global__ void __closesthit__ch()
 {
@@ -261,9 +303,10 @@ extern "C" __global__ void __closesthit__ch()
     float3 prd = { 0.0f, 0.0f, 0.0f };
     int depth = optixGetPayload_3() + 1;
 
-    if (depth < params.maxTraceDepth)
+    if (depth < params.maxTraceDepth && 
+        (couleurReflexion.x > 0.f || couleurReflexion.y > 0.f || couleurReflexion.z > 0.f))
     {
-        trace(params.handle, x, r, RAY_TYPE_RADIANCE, 0.01f, 1e6f, &prd, &depth);
+        trace(params.handle, x, r, RAY_TYPE_RADIANCE, 1e-5f, 1e6f, &prd, &depth);
         color += prd * couleurReflexion;
     }
 
@@ -278,7 +321,7 @@ extern "C" __global__ void __closesthit__ch()
         const float3 H = normalize(Lm + V);
 
         float3 attenuation = { 1.0f, 1.0f, 1.0f };
-        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, 0.01f, lightDistance - 0.01f, &attenuation, &depth);
+        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, 1e-5f, lightDistance - 0.01f, &attenuation, &depth);
         const float3 lightColor = params.lights[i].color * attenuation;
 
         const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
