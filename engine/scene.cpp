@@ -1,6 +1,7 @@
 #include <scene.h>
 #include <sphere.h>
 #include <plane.h>
+#include <rectangle.h>
 
 #include <PointLight.h>
 #include <BasicMaterial.h>
@@ -28,7 +29,7 @@ void Scene::SetupObjects()
 {
     BasicMaterial yellow(
         glm::vec3(1.0f, 1.0f, 0.0f), // ka
-        glm::vec3(1.0f, 1.0f, 0.0f), // kd
+        glm::vec3(0.0f, 0.0f, 0.0f), // kd
         glm::vec3(1.0f, 1.0f, 1.0f), // ks
         glm::vec3(0.2f, 0.2f, 0.2f), // kr
         30.0f                        // alpha
@@ -44,7 +45,7 @@ void Scene::SetupObjects()
 
     BasicMaterial blackMirror(
         glm::vec3(0.1f, 0.1f, 0.1f), // ka
-        glm::vec3(0.1f, 0.1f, 0.1f), // kd
+        glm::vec3(0.0f, 0.0f, 0.0f), // kd
         glm::vec3(0.0f, 0.0f, 0.0f), // ks
         glm::vec3(1.0f, 1.0f, 1.0f), // kr
         30.0f                        // alpha
@@ -74,27 +75,34 @@ void Scene::SetupObjects()
         30.0f                        // alpha
     );
 
-    //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(0.45f, 2.0f, -2.0f), 0.8f, yellow)));
+    m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(0.0, 0.0f, 0.0f), 0.8f, yellow)));
     //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(0.0f, 0.0f, -2.0f), 0.8f, purple)));
-    m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(0.0f, 0.0f, 0.0f), 1.0f, blackMirror)));
-    //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(2.0f, 2.0f, -3.0f), 1.0f, cyan)));
-    //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(-2.0f, 2.0f, -3.0f), 1.2f, white)));
+    //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(2.0f, 2.0f, -1.0f), 1.0f, cyan)));
+    //m_shapes.push_back(std::make_shared<Sphere>(Sphere(glm::vec3(-2.0f, 2.0f, -1.0f), 1.2f, white)));
 
-    m_shapes.push_back(std::make_shared<Plane>(Plane(glm::vec3(0.0f, -2.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), darkRed)));
+    // boite
+    m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(-4.0f, -4.0f, 4.0f), darkRed)));
+    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(-4.0f, -4.0f, 4.0f), blackMirror)));
+    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(-4.0f, -4.0f, -4.0f), blackMirror)));
+    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(4.0f, -4.0f, 4.0f), blackMirror)));
+    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, -8.0f), glm::vec3(-4.0f, 4.0f, 4.0f), cyan)));
+    //m_shapes.push_back(std::make_shared<Rectangle>(Rectangle(glm::vec3(0.0f, 8.0f, 0.0f), glm::vec3(8.0f, 0.0f, 0.0f), glm::vec3(-4.0f, -4.0f, 4.0f), blackMirror)));
+
 }
 
 void Scene::SetupLights()
 {
     m_ambientLight = { 0.4, 0.4, 0.4 };
 
-    m_lights.push_back(PointLight({ 0.0, 10.0, 0.0 }, { 0.6, 0.6, 0.6 }));
+    m_lights.push_back(PointLight({ 3.0, 3.0, -3.0 }, { 0.6, 0.6, 0.6 }));
+    m_lights.push_back(PointLight({ 0.0, 20.0, 0.0 }, { 0.6, 0.6, 0.6 }));
 }
 
 void Scene::SetupCamera()
 {
     m_backgroundColor = { 0.0f, 0.0f, 0.0f };
     m_camera.reset(new sutil::Camera(
-            { 0.0f, 1.0f, 7.0f }, // Position de l'oeil
+            { 0.0f, 0.0f, 1.0f }, // Position de l'oeil
             { 0.0f, 0.0f, 0.0f }, // Point au centre du regard
             { 0.0f, 1.0f, 0.0f }, // Vecteur haut
             60.0f, // Field of view

@@ -16,7 +16,7 @@ class IShape
 public:
     IShape() = default;
     IShape(const glm::vec3& position, const BasicMaterial& material, const std::string& intersectionProgram);
-    virtual ~IShape() {};
+    virtual ~IShape() = default;
 
     /// Copie la representation geometrique de l'objet dans data
     virtual void CopyToDevice(device::HitGroupData& data) const = 0;

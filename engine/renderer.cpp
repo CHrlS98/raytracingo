@@ -33,6 +33,73 @@ const char* CLOSEST_HIT_RADIANCE_PROGRAM = "__closesthit__ch";
 const char* CLOSEST_HIT_OCCLUSION_PROGRAM = "__closesthit__full_occlusion";
 const char* PARAMS_STRUCT_NAME = "params";
 const char* KERNEL_CUDA_NAME = "kernel.cu";
+
+static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+    RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
+    if (state)
+    {
+        double xpos;
+        double ypos;
+        glfwGetCursorPos(window, &xpos, &ypos);
+        if (action == GLFW_PRESS)
+        {
+            state->mouseButton = button;
+            state->trackball->startTracking(static_cast<int>(xpos), static_cast<int>(ypos));
+        }
+        else
+        {
+            state->mouseButton = -1;
+        }
+    }
+}
+
+static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
+{
+    RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
+    if (state)
+    {
+        if (state->mouseButton == GLFW_MOUSE_BUTTON_LEFT)
+        {
+            state->trackball->setViewMode(sutil::Trackball::LookAtFixed);
+            state->trackball->updateTracking(static_cast<int>(xpos), static_cast<int>(ypos), state->params->image_width, state->params->image_height);
+            state->cameraChangedFlag = true;
+        }
+        else if (state->mouseButton == GLFW_MOUSE_BUTTON_RIGHT)
+        {
+            state->trackball->setViewMode(sutil::Trackball::EyeFixed);
+            state->trackball->updateTracking(static_cast<int>(xpos), static_cast<int>(ypos), state->params->image_width, state->params->image_height);
+            state->cameraChangedFlag = true;
+        }
+    }
+}
+
+static void windowSizeCallback(GLFWwindow* window, int32_t res_x, int32_t res_y)
+{
+    RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
+    if (state)
+    {
+        state->params->image_width = res_x;
+        state->params->image_height = res_y;
+        state->cameraChangedFlag = true;
+        state->windowResizeFlag = true;
+    }
+}
+
+static void keyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/)
+{
+}
+
+static void scrollCallback(GLFWwindow* window, double xscroll, double yscroll)
+{
+    RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
+    if (state)
+    {
+        state->trackball->wheelEvent(static_cast<int>(yscroll));
+        state->cameraChangedFlag = true;
+    }
+}
+
 }
 
 static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*callbackdata */)
@@ -55,6 +122,7 @@ Renderer::Renderer(std::shared_ptr<Scene> scene)
     , m_deviceGasOutputBuffer(0)
     , m_traversableHandle(0)
     , m_scene(scene)
+    , m_state()
 {
     Initialize();
 }
@@ -316,7 +384,7 @@ void Renderer::CreateShapes()
 
         // Create aabb
         aabb[i] = shapes[i]->GetAabb();
-        aabbInputFlags[i] = OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_NONE;
+        aabbInputFlags[i] = OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
         sbtIndex[i] = i;
 
         // Create radiance program group
@@ -463,7 +531,7 @@ void Renderer::BuildAccelerationStructure(
     size_t compactedSizeOffset = roundUp<size_t>(gasBufferSizes.outputSizeInBytes, 8ull);
     CUDA_CHECK(cudaMalloc(
         reinterpret_cast<void**>(&deviceBufferTempOutputGasAndCompactedSize),
-        compactedSizeOffset + 8
+        compactedSizeOffset + 8 // This doesn't seem very robust
     ));
 
     OptixAccelEmitDesc emitProperty = {};
@@ -576,9 +644,55 @@ void Renderer::WriteLights(device::Params& params)
     params.nbLights = static_cast<int>(nbLights);
 }
 
-void Renderer::LaunchFrame(sutil::CUDAOutputBuffer<uchar4>& outputBuffer, device::Params& params, device::Params* d_params)
+void Renderer::Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer)
 {
-    uchar4* result_buffer_data = outputBuffer.map();
+    UpdateCamera();
+    ResizeCUDABuffer(outputBuffer);
+}
+
+void Renderer::UpdateCamera()
+{
+    if (!m_state.cameraChangedFlag)
+    {
+        return;
+    }
+    m_state.cameraChangedFlag = false;
+    std::shared_ptr<sutil::Camera> camera = m_scene->GetCamera();
+    camera->setAspectRatio(static_cast<float>(m_state.params->image_width) / static_cast<float>(m_state.params->image_height));
+
+    device::CameraData cameraData;
+    cameraData.cam_eye = m_scene->GetCamera()->eye();
+    camera->UVWFrame(cameraData.camera_u, cameraData.camera_v, cameraData.camera_w);
+    SyncCameraToSbt(cameraData);
+}
+
+void Renderer::SyncCameraToSbt(device::CameraData& data)
+{
+    CameraSbtRecord cameraSbt;
+    optixSbtRecordPackHeader(m_programs[0], &cameraSbt);
+    cameraSbt.data = data;
+
+    CUDA_CHECK(cudaMemcpy(
+        reinterpret_cast<void*>(m_shaderBindingTable.raygenRecord),
+        &cameraSbt,
+        sizeof(CameraSbtRecord),
+        cudaMemcpyHostToDevice
+    ));
+}
+
+void Renderer::ResizeCUDABuffer(sutil::CUDAOutputBuffer<uchar4>* outputBuffer)
+{
+    if (!m_state.windowResizeFlag)
+    {
+        return;
+    }
+    m_state.windowResizeFlag = false;
+    outputBuffer->resize(m_state.params->image_width, m_state.params->image_height);
+}
+
+void Renderer::LaunchFrame(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params, device::Params* d_params)
+{
+    uchar4* result_buffer_data = outputBuffer->map();
     params.image = result_buffer_data;
     CUDA_CHECK(cudaMemcpyAsync(reinterpret_cast<void*>(d_params),
         &params,
@@ -600,8 +714,18 @@ void Renderer::LaunchFrame(sutil::CUDAOutputBuffer<uchar4>& outputBuffer, device
         1 /*depth=*/));
 
     // Rendered results are now in params.image
-    outputBuffer.unmap();
+    outputBuffer->unmap();
     CUDA_SYNC_CHECK();
+}
+
+void Renderer::InitGLFWCallbacks(GLFWwindow* window, RendererState* state)
+{
+    // Donne acces aux callback au params
+    glfwSetWindowUserPointer(window, state);
+    glfwSetWindowSizeCallback(window, windowSizeCallback);
+    glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetCursorPosCallback(window, cursorPosCallback);
+    glfwSetScrollCallback(window, scrollCallback);
 }
 
 void Renderer::Display()
@@ -614,7 +738,7 @@ void Renderer::Display()
     params.image = nullptr;
     params.image_width = width;
     params.image_height = height;
-    params.sqrtSamplePerPixel = 6;
+    params.sqrtSamplePerPixel = 1;
     params.handle = m_traversableHandle;
     params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
     WriteLights(params);
@@ -628,23 +752,34 @@ void Renderer::Display()
     sutil::initGL();
     sutil::initImGui(window);
 
-    sutil::CUDAOutputBuffer<uchar4> outputBuffer(sutil::CUDAOutputBufferType::CUDA_DEVICE, width, height);
-    outputBuffer.setStream(m_cudaStream);
+    sutil::CUDAOutputBuffer<uchar4>* outputBuffer = new sutil::CUDAOutputBuffer<uchar4>(sutil::CUDAOutputBufferType::CUDA_DEVICE, width, height);
+    outputBuffer->setStream(m_cudaStream);
     
     sutil::GLDisplay display;
     int framebuf_res_x = 0;
     int framebuf_res_y = 0;
     unsigned int frameCount = 0;
 
+    m_state = { &params, nullptr, false, false, -1 };
+    m_state.trackball.reset(new sutil::Trackball);
+    m_state.trackball->setCamera(m_scene->GetCamera().get());
+    m_state.trackball->setMoveSpeed(10.0f);
+    m_state.trackball->setReferenceFrame(make_float3(1.0f, 0.0f, 0.0f), make_float3(0.0f, 0.0f, 1.0f), make_float3(0.0f, 1.0f, 0.0f));
+    m_state.trackball->setGimbalLock(true);
+    InitGLFWCallbacks(window, &m_state);
+
     do
     {
         glfwPollEvents();
+
+        Update(outputBuffer);
+
         // Where we launch our rays
         LaunchFrame(outputBuffer, params, d_params);
 
         // Display the frame
         glfwGetFramebufferSize(window, &framebuf_res_x, &framebuf_res_y);
-        display.display(outputBuffer.width(), outputBuffer.height(), framebuf_res_x, framebuf_res_y, outputBuffer.getPBO());
+        display.display(outputBuffer->width(), outputBuffer->height(), framebuf_res_x, framebuf_res_y, outputBuffer->getPBO());
 
         // Display the current Framerate
         sutil::beginFrameImGui();
@@ -655,6 +790,7 @@ void Renderer::Display()
 
     } while (!glfwWindowShouldClose(window));
 
+    delete outputBuffer;
     glfwDestroyWindow(window);
     glfwTerminate();
 }
@@ -674,5 +810,6 @@ void Renderer::CleanUp()
     OPTIX_CHECK(optixModuleDestroy(m_module));
     OPTIX_CHECK(optixDeviceContextDestroy(m_optixContext));
 }
+
 } // namespace host
 } // namespace engine

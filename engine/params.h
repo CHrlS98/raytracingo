@@ -76,6 +76,13 @@ struct PlaneData
     float3 position;
 };
 
+struct RectangleData
+{
+    float3 a;
+    float3 b;
+    float3 p0;
+};
+
 struct BasicLight
 {
     /// Position
@@ -105,6 +112,7 @@ struct HitGroupData
     {
         PlaneData plane;
         SphereData sphere;
+        RectangleData rectangle;
     } geometry;
     /// Materiel de l'objet a representer
     union
