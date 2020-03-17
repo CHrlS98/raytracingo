@@ -330,7 +330,7 @@ extern "C" __global__ void __closesthit__ch()
         const float cosAlpha = dot(N, H);
 
         const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
-        const float3 compDiffuse = cosTheta < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : cosTheta * lightColor * couleurDiffuse;
+        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
         const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
 
         color += compAmbiante + compDiffuse + compSpeculaire;

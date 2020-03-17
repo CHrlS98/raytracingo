@@ -168,21 +168,15 @@ void Trackball::moveRight(float speed)
 }
 void Trackball::moveUp(float speed)
 {
-    float3 u, v, w;
-    m_camera->UVWFrame(u, v, w);
-    v = normalize(v);
-
-    m_camera->setEye(m_camera->eye() + v * speed);
-    m_camera->setLookat(m_camera->lookat() + v * speed);
+    const float3 y = { 0.0f, 1.0f, 0.0f };
+    m_camera->setEye(m_camera->eye() + y * speed);
+    m_camera->setLookat(m_camera->lookat() + y * speed);
 }
 void Trackball::moveDown(float speed)
 {
-    float3 u, v, w;
-    m_camera->UVWFrame(u, v, w);
-    v = normalize(v);
-
-    m_camera->setEye(m_camera->eye() - v * speed);
-    m_camera->setLookat(m_camera->lookat() - v * speed);
+    const float3 y = { 0.0f, 1.0f, 0.0f };
+    m_camera->setEye(m_camera->eye() - y * speed);
+    m_camera->setLookat(m_camera->lookat() - y * speed);
 }
 
 void Trackball::rollLeft(float speed)
