@@ -326,9 +326,12 @@ extern "C" __global__ void __closesthit__ch()
         trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, rayEpsilon, lightDistance - rayEpsilon, &attenuation, &depth);
         const float3 lightColor = params.lights[i].color * attenuation;
 
+        const float cosTheta = dot(N, Lm);
+        const float cosAlpha = dot(N, H);
+
         const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
-        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(dot(Lm, N), 0.0f) * lightColor * couleurDiffuse;
-        const float3 compSpeculaire = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(powf(dot(N, H), alpha), 0.0f) * lightColor * couleurSpeculaire;
+        const float3 compDiffuse = cosTheta < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : cosTheta * lightColor * couleurDiffuse;
+        const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
 
         color += compAmbiante + compDiffuse + compSpeculaire;
     }
