@@ -33,6 +33,7 @@ const char* CLOSEST_HIT_RADIANCE_PROGRAM = "__closesthit__ch";
 const char* CLOSEST_HIT_OCCLUSION_PROGRAM = "__closesthit__full_occlusion";
 const char* PARAMS_STRUCT_NAME = "params";
 const char* KERNEL_CUDA_NAME = "kernel.cu";
+const float MOVEMENT_SPEED = 0.3f;
 
 static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -59,17 +60,31 @@ static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
     RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
     if (state)
     {
-        if (state->mouseButton == GLFW_MOUSE_BUTTON_LEFT)
+        if (state->mouseButton == GLFW_MOUSE_BUTTON_RIGHT)
         {
             state->trackball->setViewMode(sutil::Trackball::LookAtFixed);
             state->trackball->updateTracking(static_cast<int>(xpos), static_cast<int>(ypos), state->params->image_width, state->params->image_height);
             state->cameraChangedFlag = true;
         }
-        else if (state->mouseButton == GLFW_MOUSE_BUTTON_RIGHT)
+        else if (state->mouseButton == GLFW_MOUSE_BUTTON_LEFT)
         {
             state->trackball->setViewMode(sutil::Trackball::EyeFixed);
             state->trackball->updateTracking(static_cast<int>(xpos), static_cast<int>(ypos), state->params->image_width, state->params->image_height);
             state->cameraChangedFlag = true;
+        }
+        else if (state->mouseButton == GLFW_MOUSE_BUTTON_MIDDLE)
+        {
+            if (static_cast<double>(state->trackball->GetPrevPosY()) < ypos)
+            {
+                state->trackball->moveUp(MOVEMENT_SPEED);
+                state->cameraChangedFlag = true;
+            }
+            else if (static_cast<double>(state->trackball->GetPrevPosY()) > ypos)
+            {
+                state->trackball->moveDown(MOVEMENT_SPEED);
+                state->cameraChangedFlag = true;
+            }
+            state->trackball->startTracking(static_cast<int>(xpos), static_cast<int>(ypos));
         }
     }
 }
@@ -88,6 +103,30 @@ static void windowSizeCallback(GLFWwindow* window, int32_t res_x, int32_t res_y)
 
 static void keyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/)
 {
+    RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
+    if (state)
+    {
+        if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_D))
+        {
+            state->trackball->moveRight(MOVEMENT_SPEED);
+            state->cameraChangedFlag = true;
+        }
+        if ((key == GLFW_KEY_LEFT || key == GLFW_KEY_A))
+        {
+            state->trackball->moveLeft(MOVEMENT_SPEED);
+            state->cameraChangedFlag = true;
+        }
+        if ((key == GLFW_KEY_DOWN || key == GLFW_KEY_S))
+        {
+            state->trackball->moveBackward(MOVEMENT_SPEED);
+            state->cameraChangedFlag = true;
+        }
+        if ((key == GLFW_KEY_UP|| key == GLFW_KEY_W))
+        {
+            state->trackball->moveForward(MOVEMENT_SPEED);
+            state->cameraChangedFlag = true;
+        }
+    }
 }
 
 static void scrollCallback(GLFWwindow* window, double xscroll, double yscroll)
@@ -100,7 +139,7 @@ static void scrollCallback(GLFWwindow* window, double xscroll, double yscroll)
     }
 }
 
-}
+} // namespace
 
 static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*callbackdata */)
 {
@@ -724,6 +763,7 @@ void Renderer::InitGLFWCallbacks(GLFWwindow* window, RendererState* state)
     glfwSetWindowUserPointer(window, state);
     glfwSetWindowSizeCallback(window, windowSizeCallback);
     glfwSetMouseButtonCallback(window, mouseButtonCallback);
+    glfwSetKeyCallback(window, keyCallback);
     glfwSetCursorPosCallback(window, cursorPosCallback);
     glfwSetScrollCallback(window, scrollCallback);
 }

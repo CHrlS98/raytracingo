@@ -73,6 +73,8 @@ public:
     // In most cases it is not required though (set the frame/up once, leave it as is).
     SUTILAPI void setReferenceFrame(const float3& u, const float3& v, const float3& w);
 
+    SUTILAPI inline int GetPrevPosY() { return m_prevPosY; }
+
     enum ViewMode
     {
         EyeFixed,
@@ -82,15 +84,15 @@ public:
     SUTILAPI ViewMode viewMode() const { return m_viewMode; }
     SUTILAPI void setViewMode(ViewMode val) { m_viewMode = val; }
 
+    SUTILAPI void moveForward(float speed);
+    SUTILAPI void moveBackward(float speed);
+    SUTILAPI void moveRight(float speed);
+    SUTILAPI void moveLeft(float speed);
+    SUTILAPI void moveUp(float speed);
+    SUTILAPI void moveDown(float speed);
+
 private:
     void updateCamera();
-
-    void moveForward(float speed);
-    void moveBackward(float speed);
-    void moveLeft(float speed);
-    void moveRight(float speed);
-    void moveUp(float speed);
-    void moveDown(float speed);
     void rollLeft(float speed);
     void rollRight(float speed);
 
