@@ -95,7 +95,7 @@ void Scene::SetupLights()
 {
     m_ambientLight = { 0.5, 0.5, 0.5 };
 
-    m_lights.push_back(PointLight({ 3.0, 3.0, -3.0 }, { 0.6, 0.6, 0.6 }));
+    m_lights.push_back(PointLight({ 3.0, 3.0, -3.0 }, { 0.6, 0.6, 0.6 }, 0.2f));
 }
 
 void Scene::SetupCamera()
