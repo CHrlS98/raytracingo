@@ -675,6 +675,7 @@ void Renderer::WriteLights(device::Params& params)
         const glm::vec3& lightColor = lights[i].GetColor();
         params.lights[i].position = { lightPos.x, lightPos.y, lightPos.z };
         params.lights[i].color = { lightColor.x, lightColor.y, lightColor.z };
+        params.lights[i].falloff = lights[i].GetFalloff();
     }
 
     const glm::vec3& ambientLight = m_scene->GetAmbientLight();

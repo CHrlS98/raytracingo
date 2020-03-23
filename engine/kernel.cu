@@ -269,15 +269,13 @@ extern "C" __global__ void __intersection__rectangle()
 
 extern "C" __global__ void __closesthit__ch()
 {
-    const float rayEpsilon = 1e-5f;
-
     const float3 normale =
         make_float3(
             int_as_float(optixGetAttribute_0()),
             int_as_float(optixGetAttribute_1()),
             int_as_float(optixGetAttribute_2())
         );
-    const float3 N = normalize(normale);
+    float3 N = normalize(normale);
 
     const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
     const BasicMaterial& material = hgData->material.basicMaterial;
@@ -287,6 +285,8 @@ extern "C" __global__ void __closesthit__ch()
     const float3 direction = optixGetWorldRayDirection();
     const float3 x = origin + t * normalize(direction);
     const float3 V = normalize(origin - x);
+
+    const float rayEpsilon = 1e-5f * t;
 
     const float3 lumiereAmbiante = params.ambientLight;
 
@@ -312,6 +312,10 @@ extern "C" __global__ void __closesthit__ch()
         color += prd * couleurReflexion;
     }
 
+    // Composante ambiante
+    const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
+    color += compAmbiante;
+
     const int& nbLights = params.nbLights;
     for (int i = 0; i < nbLights; ++i)
     {
@@ -326,14 +330,20 @@ extern "C" __global__ void __closesthit__ch()
         trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, rayEpsilon, lightDistance - rayEpsilon, &attenuation, &depth);
         const float3 lightColor = params.lights[i].color * attenuation;
 
+        // On flip la normale si elle n'est pas du cote de l'observateur
+        if (dot(N, V) < 0.0f)
+        {
+            N *= -1.0f;
+        }
+
         const float cosTheta = dot(N, Lm);
         const float cosAlpha = dot(N, H);
 
-        const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
-        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
-        const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
+        const float falloff = 1.0f / (1.0f + params.lights[i].falloff * lightDistance);
+        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : falloff * max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
+        const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.f ? falloff * make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
 
-        color += compAmbiante + compDiffuse + compSpeculaire;
+        color += compDiffuse + compSpeculaire;
     }
 
     setPayload(color);

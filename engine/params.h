@@ -89,6 +89,8 @@ struct BasicLight
     float3 position;
     /// Couleur de l'eclairage
     float3 color;
+    /// Constante de decroissance
+    float falloff;
 };
 
 struct CameraData
