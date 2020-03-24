@@ -78,7 +78,7 @@ private:
 
     OptixProgramGroup CreateRayGenPrograms() const;
     OptixProgramGroup CreateMissPrograms();
-    OptixProgramGroup CreateHitGroupProgram(const std::shared_ptr<IShape> shape, device::RayType type);
+    OptixProgramGroup CreateHitGroupProgram(const Primitive& primitive, device::RayType type);
 
     void BuildRayGenRecords(CameraSbtRecord* records, const size_t& recordsCount);
     void BuildMissRecords(MissSbtRecord* records, const size_t& recordsCount);

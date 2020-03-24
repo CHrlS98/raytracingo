@@ -8,9 +8,6 @@
 
 #include <cuda_runtime.h>
 
-#include <sphere.h>
-#include <plane.h>
-
 #include <iostream>
 #include <iomanip>
 #include <memory>
@@ -405,8 +402,8 @@ void Renderer::CreateMiss()
 
 void Renderer::CreateShapes()
 {
-    const std::vector<std::shared_ptr<IShape>> shapes = m_scene->GetShapes();
-    const size_t& nbObjects = shapes.size();
+    const std::vector<std::shared_ptr<Shape>> shapes = m_scene->GetShapes();
+    const size_t& nbObjects = static_cast<size_t>(m_scene->GetNbObjects());
 
     // Aabb initialization
     OptixAabb* aabb = new OptixAabb[nbObjects];
@@ -417,30 +414,33 @@ void Renderer::CreateShapes()
     const size_t recordsCount = device::RayType::RAY_TYPE_COUNT * nbObjects;
     HitGroupSbtRecord* hitgroupRecords = new HitGroupSbtRecord[recordsCount];
 
-    for (int i = 0; i < nbObjects; ++i)
+    int i = 0;
+    for (std::shared_ptr<Shape> shape : shapes)
     {
-        std::shared_ptr<IShape> shape = shapes[i];
+        for (Primitive primitive : shape->GetPrimitives())
+        {
+            // Create aabb
+            aabb[i] = primitive.GetAabb();
+            aabbInputFlags[i] = OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+            sbtIndex[i] = i;
 
-        // Create aabb
-        aabb[i] = shapes[i]->GetAabb();
-        aabbInputFlags[i] = OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
-        sbtIndex[i] = i;
+            // Create radiance program group
+            OptixProgramGroup radianceProgram = CreateHitGroupProgram(primitive, device::RAY_TYPE_RADIANCE);
+            m_programs.push_back(radianceProgram);
 
-        // Create radiance program group
-        OptixProgramGroup radianceProgram = CreateHitGroupProgram(shape, device::RAY_TYPE_RADIANCE);
-        m_programs.push_back(radianceProgram);
+            // Create radiance sbt records
+            primitive.CopyToDevice(hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE].data);
+            OPTIX_CHECK(optixSbtRecordPackHeader(radianceProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE]));
 
-        // Create radiance sbt records
-        shape->CopyToDevice(hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE].data);
-        OPTIX_CHECK(optixSbtRecordPackHeader(radianceProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE]));
+            // Create occlusion program group
+            OptixProgramGroup occlusionProgram = CreateHitGroupProgram(primitive, device::RAY_TYPE_OCCLUSION);
+            m_programs.push_back(occlusionProgram);
 
-        // Create occlusion program group
-        OptixProgramGroup occlusionProgram = CreateHitGroupProgram(shape, device::RAY_TYPE_OCCLUSION);
-        m_programs.push_back(occlusionProgram);
-
-        // Create occlusion sbt records
-        shape->CopyToDevice(hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION].data);
-        OPTIX_CHECK(optixSbtRecordPackHeader(occlusionProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION]));
+            // Create occlusion sbt records
+            primitive.CopyToDevice(hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION].data);
+            OPTIX_CHECK(optixSbtRecordPackHeader(occlusionProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION]));
+            ++i;
+        }
     }
     // Build acceleration structure on GPU
     BuildAccelerationStructure(aabb, aabbInputFlags, sbtIndex, nbObjects);
@@ -454,7 +454,7 @@ void Renderer::CreateShapes()
     delete[] hitgroupRecords;
 }
 
-OptixProgramGroup Renderer::CreateHitGroupProgram(const std::shared_ptr<IShape> shape, device::RayType type)
+OptixProgramGroup Renderer::CreateHitGroupProgram(const Primitive& primitive, device::RayType type)
 {
     std::cout << "RayTracinGO: creating HitGroup program ..." << std::endl;
 
@@ -480,7 +480,7 @@ OptixProgramGroup Renderer::CreateHitGroupProgram(const std::shared_ptr<IShape> 
 
         // Intersection device settings
         desc.hitgroup.moduleIS = m_module;
-        desc.hitgroup.entryFunctionNameIS = shape->GetIntersectionProgram();
+        desc.hitgroup.entryFunctionNameIS = primitive.GetIntersectionProgram();
         break;
     case device::RAY_TYPE_OCCLUSION:
         desc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
@@ -495,7 +495,7 @@ OptixProgramGroup Renderer::CreateHitGroupProgram(const std::shared_ptr<IShape> 
 
         // Intersection device settings
         desc.hitgroup.moduleIS = m_module;
-        desc.hitgroup.entryFunctionNameIS = shape->GetIntersectionProgram();
+        desc.hitgroup.entryFunctionNameIS = primitive.GetIntersectionProgram();
         break;
     default:
         throw std::runtime_error("RayTracinGO: Invalid ray type!");
@@ -595,7 +595,6 @@ void Renderer::BuildAccelerationStructure(
     // Free scratch space used during the build
     CUDA_CHECK(cudaFree((void*)deviceTempBufferGas));
     CUDA_CHECK(cudaFree((void*)deviceAabbBuffer));
-
 
     // Optimization //
     // Additionnal compaction steps

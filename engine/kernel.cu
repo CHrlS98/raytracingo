@@ -156,116 +156,216 @@ extern "C" __global__ void __miss__ms()
     setPayload(make_float3(rt_data->r, rt_data->g, rt_data->b));
 }
 
+static __forceinline__ __device__ void TransformRay(const sutil::Matrix4x4& invModelMatrix, float3& origin, float3& direction)
+{
+    const float4 homogenousOrigin = make_float4(origin, 1.0f);
+    const float4 homogenousDir = make_float4(direction, 0.0f);
+
+    const float4 invTransformedDir = invModelMatrix * homogenousDir;
+    const float4 invTransformedOrigin = invModelMatrix * homogenousOrigin;
+
+    direction = make_float3(invTransformedDir.x, invTransformedDir.y, invTransformedDir.z);
+    origin = make_float3(invTransformedOrigin.x, invTransformedOrigin.y, invTransformedOrigin.z);
+}
+
+static __forceinline__ __device__ void TransformNormal(const sutil::Matrix4x4& invModelMatrix, float3& normal)
+{
+    const float4 homogenousN = make_float4(normal, 0.0f);
+    normal = make_float3(invModelMatrix.transpose() * homogenousN);
+}
+
+static __forceinline__ __device__ bool GetTMinCylinder(const float3& origin, const float3& direction, const float& t0, const float& t1, float& out_t)
+{
+    float t = 1e16f;
+    const float t_epsilon = 0.0001f;
+    bool valid = false;
+    if (t0 > t_epsilon)
+    {
+        // t0 est devant la camera et est la premiere intersection avec le rayon
+        const float3 p = origin + t0 * direction;
+        if (p.y > -1.0f && p.y < 1.0f)
+        {
+            // t0 est une intersection valide
+            t = t0;
+            valid = true;
+        }
+    }
+    if (t1 > t_epsilon && t1 < t)
+    {
+        const float3 p = origin + t1 * direction;
+        if (p.y > -1.0f && p.y < 1.0f)
+        {
+            // t0 est une intersection valide
+            t = t1;
+            valid = true;
+        }
+    }
+    out_t = t;
+    return valid;
+}
+
 /// Teste si un rayon intersecte avec la sphere
 extern "C" __global__ void __intersection__sphere()
 {
     const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
-    const SphereData& sphere = hg_data->geometry.sphere;
-    const float3 o = optixGetWorldRayOrigin(); // optixGetObjectRayOrigin() peu etre moins couteux ?
-    const float3 dir = optixGetWorldRayDirection();
+    const sutil::Matrix4x4& modelMatrix = hg_data->modelMatrix;
+    const sutil::Matrix4x4 inverseMM = modelMatrix.inverse();
 
-    const float3 center = sphere.position;
-    const float  radius = sphere.radius;
-    const float3 l = normalize(dir);
+    float3 origin = optixGetWorldRayOrigin();
+    float3 direction = optixGetWorldRayDirection();
+    TransformRay(inverseMM, origin, direction);
 
     // -b +/- sqrt(b^2 -c)
-    const float b = dot(l, (o - center));
-    const float c = dot(o - center, o - center) - radius * radius;
-    const float discr = b * b - c;
+    const float a = dot(direction, direction);
+    const float b = 2.0f * dot(direction, origin);
+    const float c = dot(origin, origin) - GENERIC_SPHERE_RADIUS;
+    const float discr = b * b - 4.0f * a * c;
     if (discr > 0.0f)
     {
         const float sdiscr = sqrtf(discr);
-        const float t = (-b - sdiscr); // car sdiscr toujours positif
+        const float t = (-b - sdiscr)/(2.0f * a);
 
-        const float3 normale = normalize(o + t * l - center);
+        float3 n = normalize(origin + t * direction);
+        TransformNormal(inverseMM, n);
 
-        unsigned int p0, p1, p2;
-        p0 = float_as_int(normale.x);
-        p1 = float_as_int(normale.y);
-        p2 = float_as_int(normale.z);
-
-        optixReportIntersection(
-            t,      // t hit
-            0,          // user hit kind
-            p0, p1, p2
-        );
-    }
-}
-
-/// Teste si le rayon intersecte un plan
-extern "C" __global__ void __intersection__plane()
-{
-    const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
-    const PlaneData& plane = hg_data->geometry.plane;
-    const float3 o = optixGetWorldRayOrigin();
-    const float3 dir = optixGetWorldRayDirection();
-    const float3 l = normalize(dir);
-
-    const float3 position = plane.position;
-    const float3 n = normalize(plane.normal);
-
-    float divisor = dot(l, n);
-    if (divisor != 0.0f)
-    {
-        const float t = dot(position - o, n) / divisor;
-        unsigned int p0, p1, p2;
-        p0 = float_as_int(n.x);
-        p1 = float_as_int(n.y);
-        p2 = float_as_int(n.z);
-
-        if (t > 0.0f)
+        const float t_epsilon = 0.0001f;
+        if (t > t_epsilon)
         {
+            unsigned int nx, ny, nz;
+            nx = float_as_int(n.x);
+            ny = float_as_int(n.y);
+            nz = float_as_int(n.z);
             optixReportIntersection(
                 t,      // t hit
                 0,          // user hit kind
-                p0, p1, p2
+                nx, ny, nz
             );
         }
     }
 }
 
-extern "C" __global__ void __intersection__rectangle()
+/// Teste si un rayon intersecte un cylindre
+extern "C" __global__ void __intersection__cylinder()
 {
     const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
-    const RectangleData& rectangle = hg_data->geometry.rectangle;
+    const sutil::Matrix4x4& modelMatrix = hg_data->modelMatrix;
+    const sutil::Matrix4x4& inverseMM = modelMatrix.inverse();
 
-    const float3 o = optixGetWorldRayOrigin();
-    const float3 dir = optixGetWorldRayDirection();
-    const float3 l = normalize(dir);
+    float3 o = optixGetWorldRayOrigin();
+    float3 dir = optixGetWorldRayDirection();
+    TransformRay(inverseMM, o, dir);
+    
+    const float a = dir.x * dir.x + dir.z * dir.z;
+    const float b = 2.0f * (o.x * dir.x + o.z * dir.z);
+    const float c = o.x * o.x + o.z * o.z - GENERIC_CYLINDER_RADIUS;
+    const float discr = b * b - 4.0f * a * c;
+    if (discr > 0.f)
+    {
+        const float sdiscr = sqrt(discr);
+        const float t0 = (-b + sdiscr) / (2.0f * a);
+        const float t1 = (-b - sdiscr) / (2.0f * a);
+        
+        float t;
+        if (GetTMinCylinder(o, dir, t0, t1, t))
+        {
+            const float3 p = o + t * dir;
+            float3 n = make_float3(p.x, 0.0f, p.z);
 
-    const float3 p0 = rectangle.p0;
-    const float3 n = normalize(cross(rectangle.a, rectangle.b));
+            TransformNormal(inverseMM, n);
 
-    float divisor = dot(l, n);
+            unsigned int nx, ny, nz;
+            nx = float_as_int(n.x);
+            ny = float_as_int(n.y);
+            nz = float_as_int(n.z);
+
+            optixReportIntersection(
+                t,      // t hit
+                0,      // user hit kind
+                nx, ny, nz
+            );
+        }
+    }
+}
+
+/// Teste si un rayon intersecte un disque
+extern "C" __global__ void __intersection__disk()
+{
+    const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+    const sutil::Matrix4x4& modelMatrix = hg_data->modelMatrix;
+    const sutil::Matrix4x4& inverseMM = modelMatrix.inverse();
+
+    float3 o = optixGetWorldRayOrigin();
+    float3 dir = optixGetWorldRayDirection();
+    TransformRay(inverseMM, o, dir);
+
+    float3 n = make_float3(0.0f, 1.0f, 0.0f);
+    const float divisor = dot(dir, n);
     if (divisor != 0.0f)
     {
-        const float t = dot(p0 - o, n) / divisor;
+        const float t = dot(-o, n) / divisor;
         if (t > 0.0f)
         {
-            const float3 p = o + t * l;
-            const float3 a = rectangle.a;
-
-            if (0 - 0.01f <= dot(p - p0, a) && dot(p - p0, a) <= dot(a, a) + 0.01f)
+            const float3 p = o + t * dir;
+            if (dot(p, p) < GENERIC_DISK_RADIUS)
             {
-                const float3 b = rectangle.b;
-                if (0 -0.01f <= dot(p - p0, b) && dot(p - p0, b) <= dot(b, b) + 0.01f)
-                {
-                    unsigned int nx, ny, nz;
-                    nx = float_as_int(n.x);
-                    ny = float_as_int(n.y);
-                    nz = float_as_int(n.z);
-            
-                    optixReportIntersection(
-                        t,      // t hit
-                        0,      // user hit kind
-                        nx, ny, nz
-                    );
-                }
+                TransformNormal(inverseMM, n);
+                unsigned int nx, ny, nz;
+                nx = float_as_int(n.x);
+                ny = float_as_int(n.y);
+                nz = float_as_int(n.z);
+
+                optixReportIntersection(
+                    t,      // t hit
+                    0,      // user hit kind
+                    nx, ny, nz
+                );
             }
         }
     }
 }
 
+/// Teste si un rayon intersecte un rectangle
+extern "C" __global__ void __intersection__rectangle()
+{
+    const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+    const sutil::Matrix4x4& modelMatrix = hg_data->modelMatrix;
+    const sutil::Matrix4x4& inverseMM = modelMatrix.inverse();
+
+    float3 o = optixGetWorldRayOrigin();
+    float3 dir = optixGetWorldRayDirection();
+    TransformRay(inverseMM, o, dir);
+
+    const float& width = GENERIC_RECTANGLE_WIDTH;
+    const float3 p0 = make_float3(-width/2.0f, 0.0f, width/2.0f);
+    const float3 a = make_float3(width, 0.0f, 0.0f);
+    const float3 b = make_float3(0.0f, 0.0f, -width);
+    float3 n = make_float3(0.0f, 1.0f, 0.0f);
+
+    float divisor = dot(dir, n);
+    if (divisor != 0.0f)
+    {
+        const float t = dot(p0 - o, n) / divisor;
+        if (t > 0.0f)
+        {
+            const float3 p = o + t * dir;
+
+            if (0.0f < dot(p - p0, a) && dot(p - p0, a) < width && 0.0f < dot(p - p0, b) && dot(p - p0, b) < width)
+            {
+                TransformNormal(inverseMM, n);
+                unsigned int nx, ny, nz;
+                nx = float_as_int(n.x);
+                ny = float_as_int(n.y);
+                nz = float_as_int(n.z);
+            
+                optixReportIntersection(
+                    t,      // t hit
+                    0,      // user hit kind
+                    nx, ny, nz
+                );
+            }
+        }
+    }
+}
 
 extern "C" __global__ void __closesthit__ch()
 {
@@ -281,12 +381,11 @@ extern "C" __global__ void __closesthit__ch()
     const BasicMaterial& material = hgData->material.basicMaterial;
 
     const float t = optixGetRayTmax();
+    const float rayEpsilon = 1e-6f * max(t, 1.0f);
     const float3 origin = optixGetWorldRayOrigin();
     const float3 direction = optixGetWorldRayDirection();
     const float3 x = origin + t * normalize(direction);
     const float3 V = normalize(origin - x);
-
-    const float rayEpsilon = 1e-5f * t;
 
     const float3 lumiereAmbiante = params.ambientLight;
 
@@ -305,10 +404,10 @@ extern "C" __global__ void __closesthit__ch()
     float3 prd = { 0.0f, 0.0f, 0.0f };
     int depth = optixGetPayload_3() + 1;
 
-    if (depth < params.maxTraceDepth && 
+    if (depth < params.maxTraceDepth &&
         (couleurReflexion.x > 0.f || couleurReflexion.y > 0.f || couleurReflexion.z > 0.f))
     {
-        trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth);
+        trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e16f, &prd, &depth);
         color += prd * couleurReflexion;
     }
 

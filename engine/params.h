@@ -30,12 +30,22 @@
 #include <stdint.h>
 #include <device_types.h>
 #include <vector_types.h>
+#include <sutil/Matrix.h>
 #include <optix.h>
 
 namespace engine
 {
 namespace device
 {
+/// Rayon de la sphere generique
+const __device__ float GENERIC_SPHERE_RADIUS = 1.0f;
+/// Largeur du rectangle generique
+const __device__ float GENERIC_RECTANGLE_WIDTH = 1.0f;
+/// Rayon du cylindre generique
+const __device__ float GENERIC_CYLINDER_RADIUS = 1.0f;
+/// Rayon du disque generique
+const __device__ float GENERIC_DISK_RADIUS = 1.0f;
+
 enum RayType
 {
     /// Rayon pour le calcul d'illumination
@@ -58,29 +68,6 @@ struct BasicMaterial
     float3 kr;
     /// Coefficient de reflexion speculaire
     float alpha;
-};
-
-struct SphereData
-{
-    /// Rayon de la sphere
-    float radius;
-    /// Position dans le repere monde
-    float3 position;
-};
-
-struct PlaneData
-{
-    /// Normale du plan en coordonnees monde
-    float3 normal;
-    /// Position du plan dans le repere monde
-    float3 position;
-};
-
-struct RectangleData
-{
-    float3 a;
-    float3 b;
-    float3 p0;
 };
 
 struct BasicLight
@@ -109,13 +96,9 @@ struct MissData
 
 struct HitGroupData
 {
-    /// Representation geometrique de l'objet
-    union
-    {
-        PlaneData plane;
-        SphereData sphere;
-        RectangleData rectangle;
-    } geometry;
+    /// Matrice de transformation en coordonnees homogenes
+    sutil::Matrix4x4 modelMatrix;
+
     /// Materiel de l'objet a representer
     union
     {
@@ -127,7 +110,6 @@ struct Params
 {
     /// Nombre maximum de lumieres dans une scene
     static const int MAX_LIGHTS = 10;
-
     /// Tableau contenant l'image rendue apres une execution d'OptiX
     uchar4* image;
     /// Largeur de l'image a generer
