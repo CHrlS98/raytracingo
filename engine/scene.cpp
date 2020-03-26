@@ -28,11 +28,57 @@ Scene::Scene(const unsigned int& camWidth, const unsigned int& camHeight)
 
 void Scene::SetupObjects()
 {
+    // custom shape
+    std::pair<std::shared_ptr<Shape>, int> triangle0;
+    {
+        std::vector<Primitive> primitives;
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER, 
+            GetTranslate(cos(M_PIf/3.0f), sin(M_PIf/3.0f), 0.0f) 
+            * GetRotate(M_PIf / 6.0f, 0.0f, 0.0f, 1.0f) 
+            * GetScale(0.4f, 1.0f, 0.4f), 
+            materials::metallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER, 
+            GetTranslate(-cos(M_PIf / 3.0f), sin(M_PIf / 3.0f), 0.0f) 
+            * GetRotate(-M_PIf / 6.0f, 0.0f, 0.0f, 1.0f) 
+            * GetScale(0.4f, 1.0f, 0.4f), 
+            materials::metallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER, 
+            GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) 
+            * GetScale(0.4f, 1.0f, 0.4f), 
+            materials::metallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
+            GetTranslate(-1.0f, 0.0f, 0.0f) 
+            * GetScale(0.4f, 0.4f, 0.4f), 
+            materials::metallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
+            GetTranslate(1.0f, 0.0f, 0.0f)
+            * GetScale(0.4f, 0.4f, 0.4f),
+            materials::metallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
+            GetTranslate(0.0f, sqrtf(3.0f), 0.0f)
+            * GetScale(0.4f, 0.4f, 0.4f),
+            materials::metallicGold)
+        );
+        triangle0 = m_factory.CreateCustom(primitives, sutil::Matrix4x4::identity());
+    }
+    triangle0.first->Transform(GetRotate(-M_PIf / 2.0f, 1.0f, 0.0f, 0.0f));
+    triangle0.first->Transform(GetTranslate(0.0f, 2.5f, 0.5f));
+    AddObject(triangle0);
+
     // disks
     std::pair<std::shared_ptr<Shape>, int> disk0 = m_factory.CreateDisk(GetScale(4.0f, 1.0f, 4.0f), materials::purple);
     disk0.first->Transform(GetTranslate(0.0f, -1.0f, 0.0f));
     AddObject(disk0);
-    
+
+    // rectangles
+    std::pair<std::shared_ptr<Shape>, int> rectangle0 = m_factory.CreateRectangle(disk0.first->GetPrimitives()[0].GetModelMatrix(), materials::purple);
+    //AddObject(rectangle0);
+
     // spheres
     std::pair<std::shared_ptr<Shape>, int> sphere0 = m_factory.CreateSphere(GetTranslate(-2.5f, 1.0f, -0.5f), materials::cyan);
     AddObject(sphere0);
@@ -55,14 +101,14 @@ void Scene::SetupLights()
 {
     m_ambientLight = { 0.4, 0.4, 0.4 };
 
-    m_lights.push_back(PointLight({ 3.0, 3.0, -3.0 }, { 0.6, 0.6, 0.6 }, 0.2f));
+    m_lights.push_back(PointLight({ 10.0, 10.0f, 0.0 }, { 0.6, 0.6, 0.6 }, 0.2f));
 }
 
 void Scene::SetupCamera()
 {
     m_backgroundColor = { 0.0f, 0.0f, 0.0f };
     m_camera.reset(new sutil::Camera(
-            { 4.0f, 4.5f, 7.0f }, // Position de l'oeil
+            { 0.0f, 4.5f, 7.5f }, // Position de l'oeil
             { 0.0f, 0.0f, 0.0f }, // Point au centre du regard
             { 0.0f, 1.0f, 0.0f }, // Vecteur haut
             60.0f, // Field of view

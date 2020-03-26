@@ -30,7 +30,7 @@ const char* CLOSEST_HIT_RADIANCE_PROGRAM = "__closesthit__ch";
 const char* CLOSEST_HIT_OCCLUSION_PROGRAM = "__closesthit__full_occlusion";
 const char* PARAMS_STRUCT_NAME = "params";
 const char* KERNEL_CUDA_NAME = "kernel.cu";
-const float MOVEMENT_SPEED = 0.3f;
+const float MOVEMENT_SPEED = 5.0f;
 
 static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -101,26 +101,28 @@ static void windowSizeCallback(GLFWwindow* window, int32_t res_x, int32_t res_y)
 static void keyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/)
 {
     RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
+    double currentTime = glfwGetTime();
+    double deltaTime = currentTime - state->time;
     if (state)
     {
         if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_D))
         {
-            state->trackball->moveRight(MOVEMENT_SPEED);
+            state->trackball->moveRight(static_cast<float>(deltaTime) * MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
         if ((key == GLFW_KEY_LEFT || key == GLFW_KEY_A))
         {
-            state->trackball->moveLeft(MOVEMENT_SPEED);
+            state->trackball->moveLeft(static_cast<float>(deltaTime) * MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
         if ((key == GLFW_KEY_DOWN || key == GLFW_KEY_S))
         {
-            state->trackball->moveBackward(MOVEMENT_SPEED);
+            state->trackball->moveBackward(static_cast<float>(deltaTime) * MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
         if ((key == GLFW_KEY_UP|| key == GLFW_KEY_W))
         {
-            state->trackball->moveForward(MOVEMENT_SPEED);
+            state->trackball->moveForward(static_cast<float>(deltaTime) * MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
     }
@@ -683,9 +685,17 @@ void Renderer::WriteLights(device::Params& params)
     params.nbLights = static_cast<int>(nbLights);
 }
 
-void Renderer::Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer)
+void Renderer::Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params, bool firstLaunch)
 {
+    // Reinitialiser le compteur de frame
+    params.frameCount = m_state.cameraChangedFlag || m_state.windowResizeFlag || firstLaunch ? 0 : params.frameCount + 1;
+    // Mettre a jour la camera
     UpdateCamera();
+    // Mettre le temps a jour
+    const double& time = glfwGetTime();
+    m_state.time = time;
+    params.time = time;
+    // Mettre a jour les dimensions de l'image
     ResizeCUDABuffer(outputBuffer);
 }
 
@@ -759,6 +769,7 @@ void Renderer::LaunchFrame(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device
 
 void Renderer::InitGLFWCallbacks(GLFWwindow* window, RendererState* state)
 {
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, GLFW_TRUE);
     // Donne acces aux callback au params
     glfwSetWindowUserPointer(window, state);
     glfwSetWindowSizeCallback(window, windowSizeCallback);
@@ -781,6 +792,7 @@ void Renderer::Display()
     params.sqrtSamplePerPixel = 1;
     params.handle = m_traversableHandle;
     params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
+    params.frameCount = 0;
     WriteLights(params);
 
     // Transfer params to the device
@@ -800,7 +812,7 @@ void Renderer::Display()
     int framebuf_res_y = 0;
     unsigned int frameCount = 0;
 
-    m_state = { &params, nullptr, false, false, -1 };
+    m_state = { &params, nullptr, false, false, glfwGetTime(), -1 };
     m_state.trackball.reset(new sutil::Trackball);
     m_state.trackball->setCamera(m_scene->GetCamera().get());
     m_state.trackball->setMoveSpeed(10.0f);
@@ -808,14 +820,16 @@ void Renderer::Display()
     m_state.trackball->setGimbalLock(true);
     InitGLFWCallbacks(window, &m_state);
 
+    bool firstLaunch = true;
     do
     {
         glfwPollEvents();
 
-        Update(outputBuffer);
-
+        Update(outputBuffer, params, firstLaunch);
+        
         // Where we launch our rays
         LaunchFrame(outputBuffer, params, d_params);
+        firstLaunch = false;
 
         // Display the frame
         glfwGetFramebufferSize(window, &framebuf_res_x, &framebuf_res_y);

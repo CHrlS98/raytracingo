@@ -23,6 +23,7 @@ struct RendererState
     std::shared_ptr<sutil::Trackball> trackball;
     bool cameraChangedFlag;
     bool windowResizeFlag;
+    double time;
     int mouseButton;
 };
 
@@ -89,7 +90,7 @@ private:
     void WriteLights(device::Params& params);
     void CreatePipeline();
 
-    void Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer);
+    void Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params, bool firstLaunch);
     void UpdateCamera();
     void SyncCameraToSbt(device::CameraData& data);
     void ResizeCUDABuffer(sutil::CUDAOutputBuffer<uchar4>* outputBuffer);

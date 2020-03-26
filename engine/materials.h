@@ -61,6 +61,15 @@ const BasicMaterial prettyGreen(
     glm::vec3(0.4f, 0.4f, 0.4f), // kr
     30.0f                        // alpha
 );
+
+/// Couleur doree metallique
+const BasicMaterial metallicGold(
+    glm::vec3(0.83f, 0.69f, 0.22f),
+    glm::vec3(0.83f, 0.69f, 0.22f),
+    glm::vec3(0.83f, 0.69f, 0.22f),
+    glm::vec3(0.8f, 0.8f, 0.8f),
+    10.0f
+);
 }
 }
 }

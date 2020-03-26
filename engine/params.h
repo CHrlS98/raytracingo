@@ -43,6 +43,8 @@ const __device__ float GENERIC_SPHERE_RADIUS = 1.0f;
 const __device__ float GENERIC_RECTANGLE_WIDTH = 1.0f;
 /// Rayon du cylindre generique
 const __device__ float GENERIC_CYLINDER_RADIUS = 1.0f;
+/// Hauteur du cylindre generique
+const __device__ float GENERIC_CYLINDER_HEIGHT = 2.0f;
 /// Rayon du disque generique
 const __device__ float GENERIC_DISK_RADIUS = 1.0f;
 
@@ -128,6 +130,10 @@ struct Params
     float3 ambientLight;
     /// Handle vers la geometrie de la scene
     OptixTraversableHandle handle;
+    /// Temps ecoule depuis le debut du programme
+    double time;
+    /// Nombre total de frame ecoules depuis le debut de l'affichage
+    unsigned int frameCount;
 };
 } // namespace device
 
