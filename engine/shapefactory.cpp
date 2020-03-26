@@ -66,5 +66,12 @@ std::pair<std::shared_ptr<Shape>, int> ShapeFactory::CreateCube(const sutil::Mat
 
     return std::make_pair<std::shared_ptr<Shape>, int>(std::make_shared<Shape>(Shape(primitives, modelMatrix)), 6);
 }
+
+std::pair<std::shared_ptr<Shape>, int> ShapeFactory::CreateCustom(
+    const std::vector<Primitive>& primitives, 
+    const sutil::Matrix4x4& modelMatrix) const
+{
+    return std::make_pair<std::shared_ptr<Shape>, int>(std::make_shared<Shape>(Shape(primitives, modelMatrix)), primitives.size());
+}
 } // namespace host
 } // namespace engine

@@ -95,8 +95,16 @@ __forceinline__ __device__ uchar4 make_color(const float3&  c)
     );
 }
 
+static __forceinline__ __device__ unsigned int GenerateSeed(const uint3& idx)
+{
+    float timeSeed = static_cast<float>(static_cast<int>(params.time * 1000.f) % 1000);
+    return static_cast<unsigned int>(fabsf(sinf(timeSeed) * ((idx.x * idx.x + powf(idx.y, 3.f) + params.time * 1000.f)))) % 10000;
+}
+
 extern "C" __global__ void __raygen__rg()
 {
+    const float tresholdRatio = 0.015f;
+
     // lookup our location within the launch grid
     const uint3 idx = optixGetLaunchIndex();
     const uint3 dim = optixGetLaunchDimensions();
@@ -112,41 +120,61 @@ extern "C" __global__ void __raygen__rg()
     const float3      V = rtData->camera_v;
     const float3      W = rtData->camera_w;
 
-    unsigned int seedX = idx.y + idx.x + 1;
-    unsigned int seedY = idx.y/(idx.x + 1) + 1;
     float3 color = { 0.0f, 0.0f, 0.0f };
     const uint32_t sqrtSamplePerPixel = params.sqrtSamplePerPixel;
-
-    for (unsigned int i = 0; i < sqrtSamplePerPixel; ++i)
+    unsigned int seed = GenerateSeed(idx);
+    const float ratioNewImage = 1.0f / static_cast<float>(params.frameCount + 1);
+    
+    if (ratioNewImage > tresholdRatio)
     {
-        for (unsigned int j = 0; j < sqrtSamplePerPixel; ++j)
+        for (unsigned int i = 0; i < sqrtSamplePerPixel; ++i)
         {
-            const float offsetIncrement = 1.0f / static_cast<float>(sqrtSamplePerPixel);
-            const float fi = static_cast<float>(i);
-            const float fj = static_cast<float>(j);
+            for (unsigned int j = 0; j < sqrtSamplePerPixel; ++j)
+            {
+                const float offsetIncrement = 1.0f / static_cast<float>(sqrtSamplePerPixel);
+                const float fi = static_cast<float>(i);
+                const float fj = static_cast<float>(j);
 
-            const float2 d = 2.0f * make_float2(
-                (x + (fi + 0.5 * (rnd(seedX) + 1.0f))* offsetIncrement) / dimX, 
-                (y + (fj + 0.5 * (rnd(seedY) + 1.0f)) * offsetIncrement) / dimY
-            ) - 1.0f;
+                const float2 d = 2.0f * make_float2(
+                    (x + (fi + rnd(seed))* offsetIncrement) / dimX, 
+                    (y + (fj + rnd(seed)) * offsetIncrement) / dimY
+                ) - 1.0f;
 
-            const float3 origin = rtData->cam_eye;
-            const float3 direction = normalize(d.x * U + d.y * V + W);
-            float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
-            int depth = 0;
-            trace(params.handle,
-                origin,
-                direction,
-                RAY_TYPE_RADIANCE,
-                0.00f,  // tmin
-                1e16f,  // tmax
-                &payload_rgb,
-                &depth);
+                const float3 origin = rtData->cam_eye;
+                const float3 direction = normalize(d.x * U + d.y * V + W);
+                float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
+                int depth = 0;
+                trace(params.handle,
+                    origin,
+                    direction,
+                    RAY_TYPE_RADIANCE,
+                    0.00f,  // tmin
+                    1e16f,  // tmax
+                    &payload_rgb,
+                    &depth);
 
-            color += payload_rgb;
+                color += payload_rgb;
+            }
+        }
+
+        const float3 currentColor = color / static_cast<float>(sqrtSamplePerPixel * sqrtSamplePerPixel);
+        if (params.frameCount == 0)
+        {
+            params.image[idx.y * params.image_width + idx.x] = make_color(currentColor);
+        }
+        else
+        {
+            const uchar4 previousColorChar4 = params.image[idx.y * params.image_width + idx.x];
+            const float3 previousColor = make_float3(
+                previousColorChar4.x / 255.f, 
+                previousColorChar4.y / 255.f, 
+                previousColorChar4.z / 255.f
+            );
+
+            const float3 avgColor = (1.0f - ratioNewImage) * previousColor + ratioNewImage * currentColor;
+            params.image[idx.y * params.image_width + idx.x] = make_color(avgColor);
         }
     }
-    params.image[idx.y * params.image_width + idx.x] = make_color(color / static_cast<float>(sqrtSamplePerPixel * sqrtSamplePerPixel));
 }
 
 
@@ -174,16 +202,22 @@ static __forceinline__ __device__ void TransformNormal(const sutil::Matrix4x4& i
     normal = make_float3(invModelMatrix.transpose() * homogenousN);
 }
 
+static __forceinline__ __device__ bool equalFloat(const float a, const float b, const float tolerance)
+{
+    return a > b - tolerance && a < b + tolerance;
+}
+
 static __forceinline__ __device__ bool GetTMinCylinder(const float3& origin, const float3& direction, const float& t0, const float& t1, float& out_t)
 {
     float t = 1e16f;
-    const float t_epsilon = 0.0001f;
+    const float t_epsilon = 0.001f;
     bool valid = false;
+    const float halfHeight = GENERIC_CYLINDER_HEIGHT / 2.0f;
     if (t0 > t_epsilon)
     {
         // t0 est devant la camera et est la premiere intersection avec le rayon
         const float3 p = origin + t0 * direction;
-        if (p.y > -1.0f && p.y < 1.0f)
+        if (p.y > -halfHeight && p.y < halfHeight)
         {
             // t0 est une intersection valide
             t = t0;
@@ -193,7 +227,7 @@ static __forceinline__ __device__ bool GetTMinCylinder(const float3& origin, con
     if (t1 > t_epsilon && t1 < t)
     {
         const float3 p = origin + t1 * direction;
-        if (p.y > -1.0f && p.y < 1.0f)
+        if (p.y > -halfHeight && p.y < halfHeight)
         {
             // t0 est une intersection valide
             t = t1;
@@ -247,6 +281,7 @@ extern "C" __global__ void __intersection__sphere()
 /// Teste si un rayon intersecte un cylindre
 extern "C" __global__ void __intersection__cylinder()
 {
+    static const float discrEpsilon = 0.001f;
     const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
     const sutil::Matrix4x4& modelMatrix = hg_data->modelMatrix;
     const sutil::Matrix4x4& inverseMM = modelMatrix.inverse();
@@ -259,7 +294,7 @@ extern "C" __global__ void __intersection__cylinder()
     const float b = 2.0f * (o.x * dir.x + o.z * dir.z);
     const float c = o.x * o.x + o.z * o.z - GENERIC_CYLINDER_RADIUS;
     const float discr = b * b - 4.0f * a * c;
-    if (discr > 0.f)
+    if (discr > discrEpsilon)
     {
         const float sdiscr = sqrt(discr);
         const float t0 = (-b + sdiscr) / (2.0f * a);
@@ -290,6 +325,7 @@ extern "C" __global__ void __intersection__cylinder()
 /// Teste si un rayon intersecte un disque
 extern "C" __global__ void __intersection__disk()
 {
+    static const float diskEpsilon = 0.0001f;
     const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
     const sutil::Matrix4x4& modelMatrix = hg_data->modelMatrix;
     const sutil::Matrix4x4& inverseMM = modelMatrix.inverse();
@@ -300,10 +336,10 @@ extern "C" __global__ void __intersection__disk()
 
     float3 n = make_float3(0.0f, 1.0f, 0.0f);
     const float divisor = dot(dir, n);
-    if (divisor != 0.0f)
+    if (!equalFloat(divisor, 0.0f, 0.01f))
     {
         const float t = dot(-o, n) / divisor;
-        if (t > 0.0f)
+        if (t > diskEpsilon)
         {
             const float3 p = o + t * dir;
             if (dot(p, p) < GENERIC_DISK_RADIUS)
@@ -327,6 +363,8 @@ extern "C" __global__ void __intersection__disk()
 /// Teste si un rayon intersecte un rectangle
 extern "C" __global__ void __intersection__rectangle()
 {
+    static const float rectangleEpsilon = 0.0001f;
+
     const HitGroupData* hg_data = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
     const sutil::Matrix4x4& modelMatrix = hg_data->modelMatrix;
     const sutil::Matrix4x4& inverseMM = modelMatrix.inverse();
@@ -345,7 +383,7 @@ extern "C" __global__ void __intersection__rectangle()
     if (divisor != 0.0f)
     {
         const float t = dot(p0 - o, n) / divisor;
-        if (t > 0.0f)
+        if (t > rectangleEpsilon)
         {
             const float3 p = o + t * dir;
 
@@ -381,7 +419,7 @@ extern "C" __global__ void __closesthit__ch()
     const BasicMaterial& material = hgData->material.basicMaterial;
 
     const float t = optixGetRayTmax();
-    const float rayEpsilon = 1e-6f * max(t, 1.0f);
+    const float rayEpsilon = 1e-6f * max(t*t, 1.0f);
     const float3 origin = optixGetWorldRayOrigin();
     const float3 direction = optixGetWorldRayDirection();
     const float3 x = origin + t * normalize(direction);
@@ -402,11 +440,12 @@ extern "C" __global__ void __closesthit__ch()
     // vecteur reflechi
     const float3 r = -omega + 2 * dot(N, omega) * N;
     float3 prd = { 0.0f, 0.0f, 0.0f };
-    int depth = optixGetPayload_3() + 1;
+    int depth = optixGetPayload_3();
 
-    if (depth < params.maxTraceDepth &&
+    if (depth < params.maxTraceDepth && 
         (couleurReflexion.x > 0.f || couleurReflexion.y > 0.f || couleurReflexion.z > 0.f))
     {
+        ++depth;
         trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e16f, &prd, &depth);
         color += prd * couleurReflexion;
     }
@@ -440,7 +479,7 @@ extern "C" __global__ void __closesthit__ch()
 
         const float falloff = 1.0f / (1.0f + params.lights[i].falloff * lightDistance);
         const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : falloff * max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
-        const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.f ? falloff * make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
+        const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.001f ? falloff * make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
 
         color += compDiffuse + compSpeculaire;
     }

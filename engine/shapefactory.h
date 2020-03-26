@@ -30,6 +30,9 @@ public:
 
     /// Construire un cube centre a l'origine
     std::pair<std::shared_ptr<Shape>, int> CreateCube(const sutil::Matrix4x4& modelMatrix, const BasicMaterial& material) const;
+
+    /// Construire une forme personnalisee a partir d'un ensemble de primitives
+    std::pair<std::shared_ptr<Shape>, int> CreateCustom(const std::vector<Primitive>& primitives, const sutil::Matrix4x4& modelMatrix) const;
 };
 }
 }
