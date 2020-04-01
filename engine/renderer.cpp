@@ -55,6 +55,7 @@ static void mouseButtonCallback(GLFWwindow* window, int button, int action, int 
 static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
 {
     RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
+    const double deltaTime = glfwGetTime() - state->time;
     if (state)
     {
         if (state->mouseButton == GLFW_MOUSE_BUTTON_RIGHT)
@@ -73,12 +74,12 @@ static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         {
             if (static_cast<double>(state->trackball->GetPrevPosY()) < ypos)
             {
-                state->trackball->moveUp(MOVEMENT_SPEED);
+                state->trackball->moveUp(deltaTime * MOVEMENT_SPEED);
                 state->cameraChangedFlag = true;
             }
             else if (static_cast<double>(state->trackball->GetPrevPosY()) > ypos)
             {
-                state->trackball->moveDown(MOVEMENT_SPEED);
+                state->trackball->moveDown(deltaTime * MOVEMENT_SPEED);
                 state->cameraChangedFlag = true;
             }
             state->trackball->startTracking(static_cast<int>(xpos), static_cast<int>(ypos));
@@ -101,8 +102,7 @@ static void windowSizeCallback(GLFWwindow* window, int32_t res_x, int32_t res_y)
 static void keyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/)
 {
     RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
-    double currentTime = glfwGetTime();
-    double deltaTime = currentTime - state->time;
+    const double deltaTime = glfwGetTime() - state->time;
     if (state)
     {
         if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_D))
