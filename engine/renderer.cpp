@@ -676,7 +676,7 @@ void Renderer::CreatePipeline()
     std::cout << "RayTracinGO: creating the pipeline ..." << std::endl;
 
     m_pipelineLinkOptions = {};
-    m_pipelineLinkOptions.maxTraceDepth = 10; // Maximum trace recursion depth. The maximum is 31
+    m_pipelineLinkOptions.maxTraceDepth = 3; // Maximum trace recursion depth. The maximum is 31
     m_pipelineLinkOptions.debugLevel = OptixCompileDebugLevel::OPTIX_COMPILE_DEBUG_LEVEL_FULL;
     m_pipelineLinkOptions.overrideUsesMotionBlur = false;
 

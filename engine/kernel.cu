@@ -458,12 +458,13 @@ extern "C" __global__ void __closesthit__ch()
 
     float3 prd = { 0.0f, 0.0f, 0.0f };
     int depth = optixGetPayload_3();
+    const float reflectionContribution = 0.5f;
 
-    if (depth < 3)
+    if (depth < params.maxTraceDepth)
     {
         ++depth;
         trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
-        color += prd * 0.5f;
+        color += prd * reflectionContribution;
     }
 
     // Loop qui traite les lumieres de surface
@@ -491,7 +492,7 @@ extern "C" __global__ void __closesthit__ch()
 
         const float falloff = 1.0f / (1.0f + params.surfaceLights[l].falloff * lightDistance);
         const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
-        color += falloff * (compDiffuse);
+        color += falloff * compDiffuse;
     }
 
     setPayload(color);
