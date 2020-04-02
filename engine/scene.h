@@ -43,6 +43,9 @@ private:
     void SetupCamera();
     void SetupObjects();
     void SetupLights();
+    void CreateFunPlate();
+    void CreateSadJailCell();
+    void CreateCornellBox();
     void AddObject(const std::pair<std::shared_ptr<Shape>, int>& object);
     sutil::Matrix4x4 GetScale(float sx, float sy, float sz) const;
     sutil::Matrix4x4 GetTranslate(float tx, float ty, float tz) const;

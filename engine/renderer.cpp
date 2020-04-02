@@ -754,7 +754,7 @@ void Renderer::Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Par
     m_state.time = time;
     params.time = time;
     // Mettre a jour les dimensions de l'image
-    ResizeCUDABuffer(outputBuffer);
+    ResizeCUDABuffer(outputBuffer, params);
 }
 
 void Renderer::UpdateCamera()
@@ -787,7 +787,7 @@ void Renderer::SyncCameraToSbt(device::CameraData& data)
     ));
 }
 
-void Renderer::ResizeCUDABuffer(sutil::CUDAOutputBuffer<uchar4>* outputBuffer)
+void Renderer::ResizeCUDABuffer(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params)
 {
     if (!m_state.windowResizeFlag)
     {
@@ -795,6 +795,12 @@ void Renderer::ResizeCUDABuffer(sutil::CUDAOutputBuffer<uchar4>* outputBuffer)
     }
     m_state.windowResizeFlag = false;
     outputBuffer->resize(m_state.params->image_width, m_state.params->image_height);
+    // Realloc accumulation buffer
+    CUDA_CHECK(cudaFree(reinterpret_cast<void*>(params.accum_buffer)));
+    CUDA_CHECK(cudaMalloc(
+        reinterpret_cast<void**>(&params.accum_buffer),
+        params.image_width* params.image_height * sizeof(float4)
+    ));
 }
 
 void Renderer::LaunchFrame(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params, device::Params* d_params)
@@ -842,7 +848,7 @@ void Renderer::Display()
     unsigned int width = m_scene->GetCameraWidth();
     unsigned int height = m_scene->GetCameraHeight();
 
-    // Populate the per-launch params
+    // Initialiser les parametres
     device::Params params;
     params.image = nullptr;
     params.image_width = width;
@@ -851,6 +857,10 @@ void Renderer::Display()
     params.handle = m_traversableHandle;
     params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
     params.frameCount = 0;
+    CUDA_CHECK(cudaMalloc(
+        reinterpret_cast<void**>(&params.accum_buffer),
+        params.image_width* params.image_height * sizeof(float4)
+    ));
     WriteLights(params);
 
     // Transfer params to the device
@@ -903,6 +913,7 @@ void Renderer::Display()
     } while (!glfwWindowShouldClose(window));
 
     delete outputBuffer;
+    CUDA_CHECK(cudaFree(reinterpret_cast<void*>(params.accum_buffer)));
     glfwDestroyWindow(window);
     glfwTerminate();
 }

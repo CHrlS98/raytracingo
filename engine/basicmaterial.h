@@ -13,17 +13,11 @@ public:
     BasicMaterial();
 
     /// Constructeur
-    /// \param[in] ka Couleur de la composante ambiante
     /// \param[in] kd Couleur de la composante diffuse
-    /// \param[in] ks Couleur de la composante speculaire
-    /// \param[in] kr Couleur de la composante reflechie
-    /// \param[in] alpha Coefficient de reflexion speculaire
+    /// \param[in] roughness Coefficient de reflexion speculaire
     BasicMaterial(
-        const glm::vec3& ka, 
         const glm::vec3& kd, 
-        const glm::vec3& ks, 
-        const glm::vec3& kr, 
-        const float& alpha);
+        const float& roughness);
 
     /// Copy constructeur
     BasicMaterial(const BasicMaterial& material);
@@ -32,23 +26,14 @@ public:
     virtual ~BasicMaterial() = default;
 
     /// Getters
-    inline glm::vec3 GetKa() const { return m_ka; }
     inline glm::vec3 GetKd() const { return m_kd; }
-    inline glm::vec3 GetKs() const { return m_ks; }
-    inline glm::vec3 GetKr() const { return m_kr; }
-    inline float GetAlpha() const { return m_alpha; }
+    inline float GetRoughness() const { return m_roughness; }
 
 private:
-    /// Couleur de la composante ambiante
-    glm::vec3 m_ka;
-    /// Couleur de la composante diffuse
+    /// Couleur du materiau
     glm::vec3 m_kd;
-    /// Couleur de la composante speculaire
-    glm::vec3 m_ks;
-    /// Couleur de la composante reflechie
-    glm::vec3 m_kr;
-    /// Coefficient de reflexion speculaire
-    float m_alpha;
+    /// Coefficient de rugosite
+    float m_roughness;
 };
 } // namespace host
 } // namespace engine

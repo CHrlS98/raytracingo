@@ -60,16 +60,10 @@ enum RayType
 
 struct BasicMaterial
 {
-    /// Couleur ambiante
-    float3 ka;
     /// Couleur diffuse
     float3 kd;
-    /// Couleur speculaire
-    float3 ks;
-    /// Couleur reflexion
-    float3 kr;
     /// Coefficient de reflexion speculaire
-    float alpha;
+    float roughness;
 };
 
 struct SurfaceLight
@@ -120,6 +114,8 @@ struct Params
     static const int MAX_LIGHTS = 10;
     /// Tableau contenant l'image rendue apres une execution d'OptiX
     uchar4* image;
+    /// Buffer dans lequel on accumule l'image
+    float4* accum_buffer;
     /// Largeur de l'image a generer
     uint32_t image_width;
     /// hauteur de l'image a generer

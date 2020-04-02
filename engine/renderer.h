@@ -93,7 +93,7 @@ private:
     void Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params, bool firstLaunch);
     void UpdateCamera();
     void SyncCameraToSbt(device::CameraData& data);
-    void ResizeCUDABuffer(sutil::CUDAOutputBuffer<uchar4>* outputBuffer);
+    void ResizeCUDABuffer(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params);
 
     void LaunchFrame(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params, device::Params* d_params);
     void InitGLFWCallbacks(GLFWwindow* window, RendererState* state);
