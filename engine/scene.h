@@ -13,7 +13,7 @@ namespace engine
 namespace host
 {
 class Shape;
-class PointLight;
+class SurfaceLight;
 
 class Scene
 {
@@ -22,7 +22,7 @@ public:
     ~Scene() = default;
 
     inline std::vector<std::shared_ptr<Shape>> GetShapes() const { return m_shapes; }
-    inline std::vector<PointLight> GetLights() const { return m_lights; }
+    inline std::vector<SurfaceLight> GetSurfaceLights() const { return m_surfaceLights; }
     inline glm::vec3 GetAmbientLight() const { return m_ambientLight; }
     inline std::shared_ptr<sutil::Camera> GetCamera() const { return m_camera; }
     inline unsigned int GetCameraWidth() const { return m_cameraWidth; }
@@ -32,7 +32,7 @@ public:
 
 private:
     std::vector<std::shared_ptr<Shape>> m_shapes;
-    std::vector<PointLight> m_lights;
+    std::vector<SurfaceLight> m_surfaceLights;
     std::shared_ptr<sutil::Camera> m_camera;
     glm::vec3 m_ambientLight;
     glm::vec3 m_backgroundColor;

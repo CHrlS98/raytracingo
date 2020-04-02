@@ -51,7 +51,8 @@ static __forceinline__ __device__ void trace(
     float tmin,
     float tmax,
     float3* prd,
-    int* depth
+    int* depth,
+    unsigned int seed
 )
 {
     uint32_t p0, p1, p2, p3;
@@ -71,7 +72,7 @@ static __forceinline__ __device__ void trace(
         rayType,   // SBT offset
         RAY_TYPE_COUNT,      // SBT stride
         rayType,   // missSBTIndex
-        p0, p1, p2, p3);
+        p0, p1, p2, p3, seed);
     prd->x = int_as_float(p0);
     prd->y = int_as_float(p1);
     prd->z = int_as_float(p2);
@@ -95,12 +96,6 @@ __forceinline__ __device__ uchar4 make_color(const float3&  c)
     );
 }
 
-static __forceinline__ __device__ unsigned int GenerateSeed(const uint3& idx)
-{
-    float timeSeed = static_cast<float>(static_cast<int>(params.time * 1000.f) % 1000);
-    return static_cast<unsigned int>(fabsf(sinf(timeSeed) * ((idx.x * idx.x + powf(idx.y, 3.f) + params.time * 1000.f)))) % 10000;
-}
-
 extern "C" __global__ void __raygen__rg()
 {
     const float tresholdRatio = 0.015f;
@@ -122,7 +117,8 @@ extern "C" __global__ void __raygen__rg()
 
     float3 color = { 0.0f, 0.0f, 0.0f };
     const uint32_t sqrtSamplePerPixel = params.sqrtSamplePerPixel;
-    unsigned int seed = GenerateSeed(idx);
+    const uint32_t image_index = params.image_width*idx.y + idx.x;
+    unsigned int seed = tea<16>(image_index, params.frameCount);
     const float ratioNewImage = 1.0f / static_cast<float>(params.frameCount + 1);
     
     if (ratioNewImage > tresholdRatio)
@@ -151,8 +147,8 @@ extern "C" __global__ void __raygen__rg()
                     0.00f,  // tmin
                     1e16f,  // tmax
                     &payload_rgb,
-                    &depth);
-
+                    &depth,
+                    seed);
                 color += payload_rgb;
             }
         }
@@ -415,6 +411,8 @@ extern "C" __global__ void __closesthit__ch()
         );
     float3 N = normalize(normale);
 
+    unsigned int seed = optixGetPayload_4();
+
     const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
     const BasicMaterial& material = hgData->material.basicMaterial;
 
@@ -439,6 +437,7 @@ extern "C" __global__ void __closesthit__ch()
 
     // vecteur reflechi
     const float3 r = -omega + 2 * dot(N, omega) * N;
+
     float3 prd = { 0.0f, 0.0f, 0.0f };
     int depth = optixGetPayload_3();
 
@@ -446,7 +445,7 @@ extern "C" __global__ void __closesthit__ch()
         (couleurReflexion.x > 0.f || couleurReflexion.y > 0.f || couleurReflexion.z > 0.f))
     {
         ++depth;
-        trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e16f, &prd, &depth);
+        trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
         color += prd * couleurReflexion;
     }
 
@@ -454,19 +453,33 @@ extern "C" __global__ void __closesthit__ch()
     const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
     color += compAmbiante;
 
-    const int& nbLights = params.nbLights;
-    for (int i = 0; i < nbLights; ++i)
+    // Loop qui traite les lumieres de surface
+    const int& nbSurfaceLights = params.nbSurfaceLights;
+    for (int l = 0; l < nbSurfaceLights; ++l)
     {
-        const float3 lightPos = params.lights[i].position;
+        const float3 lightNormal = params.surfaceLights[l].normal;
+        const float3 v1 = params.surfaceLights[l].v1;
+        const float3 v2 = params.surfaceLights[l].v2;
+        const float3 corner = params.surfaceLights[l].corner;
 
-        // Modele d'illumination de Blinn
-        const float3 Lm = normalize(lightPos - x);
-        const float lightDistance = length(lightPos - x);
+        // on s'assure d'etre devant la normal de la lumiere
+        if (dot(lightNormal, normalize(x - corner)) < 0.0f)
+        {
+            continue;
+        }
+
+        const float3 samplingPos = corner + rnd(seed) * v1 + rnd(seed) * v2;
+        const float3 Lm = normalize(samplingPos - x);
+        const float lightDistance = length(samplingPos - x);
         const float3 H = normalize(Lm + V);
 
         float3 attenuation = { 1.0f, 1.0f, 1.0f };
-        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, rayEpsilon, lightDistance - rayEpsilon, &attenuation, &depth);
-        const float3 lightColor = params.lights[i].color * attenuation;
+        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, rayEpsilon, lightDistance - rayEpsilon, &attenuation, &depth, seed);
+        if (attenuation.x < 0.001f && attenuation.y < 0.001f && attenuation.z < 0.001f)
+        {
+            continue;
+        }
+        const float3 lightColor = params.surfaceLights[l].color * attenuation;
 
         // On flip la normale si elle n'est pas du cote de l'observateur
         if (dot(N, V) < 0.0f)
@@ -477,14 +490,18 @@ extern "C" __global__ void __closesthit__ch()
         const float cosTheta = dot(N, Lm);
         const float cosAlpha = dot(N, H);
 
-        const float falloff = 1.0f / (1.0f + params.lights[i].falloff * lightDistance);
-        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : falloff * max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
-        const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.001f ? falloff * make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
-
-        color += compDiffuse + compSpeculaire;
+        const float falloff = 1.0f / (1.0f + params.surfaceLights[l].falloff * lightDistance);
+        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
+        const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
+        color += falloff * (compDiffuse + compSpeculaire);
     }
 
     setPayload(color);
+}
+
+extern "C" __global__ void __closesthit__light()
+{
+    setPayload({ 1.0f, 1.0f, 1.0f });
 }
 
 extern "C" __global__ void __closesthit__full_occlusion()

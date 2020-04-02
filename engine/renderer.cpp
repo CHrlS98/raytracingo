@@ -27,6 +27,7 @@ namespace
 const char* RAY_GEN_PROGRAM = "__raygen__rg";
 const char* MISS_PROGRAM = "__miss__ms";
 const char* CLOSEST_HIT_RADIANCE_PROGRAM = "__closesthit__ch";
+const char* CLOSEST_HIT_LIGHT_PROGRAM = "__closesthit__light";
 const char* CLOSEST_HIT_OCCLUSION_PROGRAM = "__closesthit__full_occlusion";
 const char* PARAMS_STRUCT_NAME = "params";
 const char* KERNEL_CUDA_NAME = "kernel.cu";
@@ -246,7 +247,7 @@ void Renderer::CreateModule()
 
     // Our device code uses 3 payload registers (r,g,b output value)
     // 4th payload contains the level of recursivity we're at
-    m_pipelineCompileOptions.numPayloadValues = 4;      // How much storage, in 32b words, to make available for the payload, [0..8]
+    m_pipelineCompileOptions.numPayloadValues = 5;      // How much storage, in 32b words, to make available for the payload, [0..8]
     m_pipelineCompileOptions.numAttributeValues = 3;    // How much storage, in 32b words, to make available for the attributes , [2..8]
     m_pipelineCompileOptions.exceptionFlags = OptixExceptionFlags::OPTIX_EXCEPTION_FLAG_NONE;  // TODO: should be OPTIX_EXCEPTION_FLAG_STACK_OVERFLOW;
 
@@ -405,7 +406,7 @@ void Renderer::CreateMiss()
 void Renderer::CreateShapes()
 {
     const std::vector<std::shared_ptr<Shape>> shapes = m_scene->GetShapes();
-    const size_t& nbObjects = static_cast<size_t>(m_scene->GetNbObjects());
+    const size_t& nbObjects = static_cast<size_t>(m_scene->GetNbObjects() + m_scene->GetSurfaceLights().size());
 
     // Aabb initialization
     OptixAabb* aabb = new OptixAabb[nbObjects];
@@ -427,7 +428,7 @@ void Renderer::CreateShapes()
             sbtIndex[i] = i;
 
             // Create radiance program group
-            OptixProgramGroup radianceProgram = CreateHitGroupProgram(primitive, device::RAY_TYPE_RADIANCE);
+            OptixProgramGroup radianceProgram = CreateHitGroupProgram(primitive.GetIntersectionProgram(), device::RAY_TYPE_RADIANCE, false);
             m_programs.push_back(radianceProgram);
 
             // Create radiance sbt records
@@ -435,7 +436,7 @@ void Renderer::CreateShapes()
             OPTIX_CHECK(optixSbtRecordPackHeader(radianceProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE]));
 
             // Create occlusion program group
-            OptixProgramGroup occlusionProgram = CreateHitGroupProgram(primitive, device::RAY_TYPE_OCCLUSION);
+            OptixProgramGroup occlusionProgram = CreateHitGroupProgram(primitive.GetIntersectionProgram(), device::RAY_TYPE_OCCLUSION, false);
             m_programs.push_back(occlusionProgram);
 
             // Create occlusion sbt records
@@ -443,6 +444,30 @@ void Renderer::CreateShapes()
             OPTIX_CHECK(optixSbtRecordPackHeader(occlusionProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION]));
             ++i;
         }
+    }
+    for (SurfaceLight sl : m_scene->GetSurfaceLights())
+    {
+        // Create aabb
+        aabb[i] = sl.GetAabb();
+        aabbInputFlags[i] = OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
+        sbtIndex[i] = i;
+
+        // Create radiance program group
+        OptixProgramGroup radianceProgram = CreateHitGroupProgram(sl.GetIntersectionProgram(), device::RAY_TYPE_RADIANCE, true);
+        m_programs.push_back(radianceProgram);
+
+        // Create radiance sbt records
+        sl.CopyToDevice(hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE].data);
+        OPTIX_CHECK(optixSbtRecordPackHeader(radianceProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE]));
+
+        // Create occlusion program group
+        OptixProgramGroup occlusionProgram = CreateHitGroupProgram(sl.GetIntersectionProgram(), device::RAY_TYPE_OCCLUSION, true);
+        m_programs.push_back(occlusionProgram);
+
+        // Create occlusion sbt records
+        sl.CopyToDevice(hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION].data);
+        OPTIX_CHECK(optixSbtRecordPackHeader(occlusionProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION]));
+        ++i;
     }
     // Build acceleration structure on GPU
     BuildAccelerationStructure(aabb, aabbInputFlags, sbtIndex, nbObjects);
@@ -456,7 +481,7 @@ void Renderer::CreateShapes()
     delete[] hitgroupRecords;
 }
 
-OptixProgramGroup Renderer::CreateHitGroupProgram(const Primitive& primitive, device::RayType type)
+OptixProgramGroup Renderer::CreateHitGroupProgram(const char* intersectionProgram, device::RayType type, bool isLight)
 {
     std::cout << "RayTracinGO: creating HitGroup program ..." << std::endl;
 
@@ -473,8 +498,17 @@ OptixProgramGroup Renderer::CreateHitGroupProgram(const Primitive& primitive, de
         desc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
         // Closest hit device settings
-        desc.hitgroup.moduleCH = m_module;
-        desc.hitgroup.entryFunctionNameCH = CLOSEST_HIT_RADIANCE_PROGRAM;
+        if (!isLight)
+        {
+            desc.hitgroup.moduleCH = m_module;
+            desc.hitgroup.entryFunctionNameCH = CLOSEST_HIT_RADIANCE_PROGRAM;
+        }
+        else
+        {
+            desc.hitgroup.moduleCH = m_module;
+            desc.hitgroup.entryFunctionNameCH = CLOSEST_HIT_LIGHT_PROGRAM;
+        }
+
 
         // Any hit device settings
         desc.hitgroup.moduleAH = nullptr;
@@ -482,22 +516,38 @@ OptixProgramGroup Renderer::CreateHitGroupProgram(const Primitive& primitive, de
 
         // Intersection device settings
         desc.hitgroup.moduleIS = m_module;
-        desc.hitgroup.entryFunctionNameIS = primitive.GetIntersectionProgram();
+        desc.hitgroup.entryFunctionNameIS = intersectionProgram;
         break;
     case device::RAY_TYPE_OCCLUSION:
         desc.kind = OptixProgramGroupKind::OPTIX_PROGRAM_GROUP_KIND_HITGROUP;
 
         // Closest hit device settings
-        desc.hitgroup.moduleCH = m_module;
-        desc.hitgroup.entryFunctionNameCH = CLOSEST_HIT_OCCLUSION_PROGRAM;
+        if (!isLight)
+        {
+            desc.hitgroup.moduleCH = m_module;
+            desc.hitgroup.entryFunctionNameCH = CLOSEST_HIT_OCCLUSION_PROGRAM;
+        }
+        else
+        {
+            desc.hitgroup.moduleCH = nullptr;
+            desc.hitgroup.entryFunctionNameCH = nullptr;
+        }
 
         // Any hit device settings
         desc.hitgroup.moduleAH = nullptr;
         desc.hitgroup.entryFunctionNameAH = nullptr;
 
         // Intersection device settings
-        desc.hitgroup.moduleIS = m_module;
-        desc.hitgroup.entryFunctionNameIS = primitive.GetIntersectionProgram();
+        if (!isLight)
+        {
+            desc.hitgroup.moduleIS = m_module;
+            desc.hitgroup.entryFunctionNameIS = intersectionProgram;
+        }
+        else
+        {
+            desc.hitgroup.moduleIS = nullptr;
+            desc.hitgroup.entryFunctionNameIS = nullptr;
+        }
         break;
     default:
         throw std::runtime_error("RayTracinGO: Invalid ray type!");
@@ -667,22 +717,30 @@ void Renderer::BuildHitGroupRecords(HitGroupSbtRecord* hitgroupRecords, const si
 
 void Renderer::WriteLights(device::Params& params)
 {
-    const std::vector<PointLight>& lights = m_scene->GetLights();
-    const size_t& nbLights = lights.size();
+    const std::vector<SurfaceLight>& surfaceLights = m_scene->GetSurfaceLights();
+    const size_t& nbSurfaceLights = surfaceLights.size();
 
-    for (size_t i = 0; i < nbLights && i < device::Params::MAX_LIGHTS; ++i)
+    // Lumiere de surface
+    for (size_t i = 0; i < nbSurfaceLights && i < device::Params::MAX_LIGHTS; ++i)
     {
-        const glm::vec3& lightPos = lights[i].GetPosition();
-        const glm::vec3& lightColor = lights[i].GetColor();
-        params.lights[i].position = { lightPos.x, lightPos.y, lightPos.z };
-        params.lights[i].color = { lightColor.x, lightColor.y, lightColor.z };
-        params.lights[i].falloff = lights[i].GetFalloff();
+        const glm::vec3& lightCorner = surfaceLights[i].GetCorner();
+        const glm::vec3& v1 = surfaceLights[i].GetV1();
+        const glm::vec3& v2 = surfaceLights[i].GetV2();
+        const glm::vec3& normal = surfaceLights[i].GetNormal();
+        const glm::vec3& color = surfaceLights[i].GetColor();
+        params.surfaceLights[i].corner = { lightCorner.x, lightCorner.y, lightCorner.z };
+        params.surfaceLights[i].v1 = { v1.x, v1.y, v1.z };
+        params.surfaceLights[i].v2 = { v2.x, v2.y, v2.z };
+        params.surfaceLights[i].normal = { normal.x, normal.y, normal.z };
+        params.surfaceLights[i].color = { color.x, color.y, color.z };
+        params.surfaceLights[i].falloff = surfaceLights[i].GetFalloff();
     }
 
+    // Lumiere ambiante
     const glm::vec3& ambientLight = m_scene->GetAmbientLight();
     params.ambientLight = { ambientLight.r, ambientLight.g, ambientLight.b };
 
-    params.nbLights = static_cast<int>(nbLights);
+    params.nbSurfaceLights = static_cast<int>(nbSurfaceLights);
 }
 
 void Renderer::Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Params& params, bool firstLaunch)
