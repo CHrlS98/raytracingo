@@ -1,6 +1,6 @@
 #pragma once
 
-#include <PointLight.h>
+#include <engine/light.h>
 #include <params.h>
 
 #include <sutil/CUDAOutputBuffer.h>
@@ -79,7 +79,7 @@ private:
 
     OptixProgramGroup CreateRayGenPrograms() const;
     OptixProgramGroup CreateMissPrograms();
-    OptixProgramGroup CreateHitGroupProgram(const Primitive& primitive, device::RayType type);
+    OptixProgramGroup CreateHitGroupProgram(const char* intersectionProgram, device::RayType type, bool isLight);
 
     void BuildRayGenRecords(CameraSbtRecord* records, const size_t& recordsCount);
     void BuildMissRecords(MissSbtRecord* records, const size_t& recordsCount);

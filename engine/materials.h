@@ -70,6 +70,43 @@ const BasicMaterial metallicGold(
     glm::vec3(0.8f, 0.8f, 0.8f),
     10.0f
 );
-}
-}
-}
+
+/// Couleur bleu moyennement interessante
+const BasicMaterial blue(
+    glm::vec3(0.0f, 0.549f, 0.988f), // ka
+    glm::vec3(0.0f, 0.549f, 0.988f), // kd
+    glm::vec3(0.9f, 0.98f, 0.988f),  // ks
+    glm::vec3(0.0f, 0.0f, 0.0f),     // kr
+    5.0f                             // alpha
+);
+
+/// Couleur gris
+const BasicMaterial grey(
+    glm::vec3(0.29f, 0.29f, 0.29f), // ka
+    glm::vec3(0.29f, 0.29f, 0.29f), // kd
+    glm::vec3(1.0f, 1.0f, 1.0f),    // ks
+    glm::vec3(0.0f, 0.0f, 0.0f),    // kr
+    500.0f                          // alpha
+);
+
+/// Couleur blanc
+const BasicMaterial white(
+    glm::vec3(1.0f, 1.0f, 1.0f), // ka
+    glm::vec3(1.0f, 1.0f, 1.0f), // kd
+    glm::vec3(0.3f, 0.3f, 0.3f), // ks
+    glm::vec3(0.0f, 0.0f, 0.0f), // kr
+    50.0f                        // alpha
+);
+
+/// Couleur creme
+const BasicMaterial cream(
+    glm::vec3(1.0f, 0.941f, 0.729f), // ka
+    glm::vec3(1.0f, 0.941f, 0.729f), // kd
+    glm::vec3(1.0f, 0.941f, 0.729f), // ks
+    glm::vec3(0.0f, 0.0f, 0.0f),     // kr
+    7.0f                             // alpha
+);
+
+} // namespace materials
+} // namespace host
+} // namespace engine

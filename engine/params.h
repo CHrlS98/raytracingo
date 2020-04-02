@@ -72,10 +72,16 @@ struct BasicMaterial
     float alpha;
 };
 
-struct BasicLight
+struct SurfaceLight
 {
-    /// Position
-    float3 position;
+    /// centre de la surface
+    float3 corner;
+    /// Vecteur v1
+    float3 v1;
+    /// Vecteur v2
+    float3 v2;
+    /// Normale de la surface
+    float3 normal;
     /// Couleur de l'eclairage
     float3 color;
     /// Constante de decroissance
@@ -120,12 +126,12 @@ struct Params
     uint32_t image_height;
     /// Cette variable au carre correspond au nombre d'echantillons par pixels
     int32_t sqrtSamplePerPixel;
-    /// Nombre de lumieres dans la scene
-    int nbLights; 
+    /// Nombre de lumieres de surface dans la scene
+    int nbSurfaceLights;
     /// Nombre maximum de recursions pour le calcul des reflexions
     int maxTraceDepth;
-    /// Tableau de lumieres
-    BasicLight lights[MAX_LIGHTS];
+    /// Tableau des lumieres de surface
+    SurfaceLight surfaceLights[MAX_LIGHTS];
     /// Couleur de l'eclairage ambiant
     float3 ambientLight;
     /// Handle vers la geometrie de la scene
