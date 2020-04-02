@@ -98,8 +98,6 @@ __forceinline__ __device__ uchar4 make_color(const float3&  c)
 
 extern "C" __global__ void __raygen__rg()
 {
-    const float tresholdRatio = 0.015f;
-
     // lookup our location within the launch grid
     const uint3 idx = optixGetLaunchIndex();
     const uint3 dim = optixGetLaunchDimensions();
@@ -121,56 +119,46 @@ extern "C" __global__ void __raygen__rg()
     unsigned int seed = tea<16>(image_index, params.frameCount);
     const float ratioNewImage = 1.0f / static_cast<float>(params.frameCount + 1);
     
-    if (ratioNewImage > tresholdRatio)
+    for (unsigned int i = 0; i < sqrtSamplePerPixel; ++i)
     {
-        for (unsigned int i = 0; i < sqrtSamplePerPixel; ++i)
+        for (unsigned int j = 0; j < sqrtSamplePerPixel; ++j)
         {
-            for (unsigned int j = 0; j < sqrtSamplePerPixel; ++j)
-            {
-                const float offsetIncrement = 1.0f / static_cast<float>(sqrtSamplePerPixel);
-                const float fi = static_cast<float>(i);
-                const float fj = static_cast<float>(j);
+            const float offsetIncrement = 1.0f / static_cast<float>(sqrtSamplePerPixel);
+            const float fi = static_cast<float>(i);
+            const float fj = static_cast<float>(j);
 
-                const float2 d = 2.0f * make_float2(
-                    (x + (fi + rnd(seed))* offsetIncrement) / dimX, 
-                    (y + (fj + rnd(seed)) * offsetIncrement) / dimY
-                ) - 1.0f;
+            const float2 d = 2.0f * make_float2(
+                (x + (fi + rnd(seed))* offsetIncrement) / dimX, 
+                (y + (fj + rnd(seed)) * offsetIncrement) / dimY
+            ) - 1.0f;
 
-                const float3 origin = rtData->cam_eye;
-                const float3 direction = normalize(d.x * U + d.y * V + W);
-                float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
-                int depth = 0;
-                trace(params.handle,
-                    origin,
-                    direction,
-                    RAY_TYPE_RADIANCE,
-                    0.00f,  // tmin
-                    1e16f,  // tmax
-                    &payload_rgb,
-                    &depth,
-                    seed);
-                color += payload_rgb;
-            }
-        }
-
-        const float3 currentColor = color / static_cast<float>(sqrtSamplePerPixel * sqrtSamplePerPixel);
-        if (params.frameCount == 0)
-        {
-            params.image[idx.y * params.image_width + idx.x] = make_color(currentColor);
-        }
-        else
-        {
-            const uchar4 previousColorChar4 = params.image[idx.y * params.image_width + idx.x];
-            const float3 previousColor = make_float3(
-                previousColorChar4.x / 255.f, 
-                previousColorChar4.y / 255.f, 
-                previousColorChar4.z / 255.f
-            );
-
-            const float3 avgColor = (1.0f - ratioNewImage) * previousColor + ratioNewImage * currentColor;
-            params.image[idx.y * params.image_width + idx.x] = make_color(avgColor);
+            const float3 origin = rtData->cam_eye;
+            const float3 direction = normalize(d.x * U + d.y * V + W);
+            float3       payload_rgb = make_float3(0.5f, 0.5f, 0.5f);
+            int depth = 0;
+            trace(params.handle,
+                origin,
+                direction,
+                RAY_TYPE_RADIANCE,
+                0.00f,  // tmin
+                1e16f,  // tmax
+                &payload_rgb,
+                &depth,
+                seed);
+            color += payload_rgb;
         }
     }
+
+    float3 currentColor = color / static_cast<float>(sqrtSamplePerPixel * sqrtSamplePerPixel);
+    int pxlIndex = idx.y * params.image_width + idx.x;
+
+    if (params.frameCount > 0)
+    {
+        float3 previousColor = make_float3(params.accum_buffer[pxlIndex]);
+        currentColor = lerp(previousColor, currentColor, ratioNewImage);
+    }
+    params.accum_buffer[pxlIndex] = make_float4(currentColor, 1.0f);
+    params.image[pxlIndex] = make_color(currentColor);
 }
 
 
@@ -178,6 +166,34 @@ extern "C" __global__ void __miss__ms()
 {
     MissData* rt_data = reinterpret_cast<MissData*>(optixGetSbtDataPointer());
     setPayload(make_float3(rt_data->r, rt_data->g, rt_data->b));
+}
+
+static __forceinline__ __device__ float3 GetRayOnHemisphere(const float3& normal, unsigned int& seed)
+{
+    float3 ray;
+    do
+    {
+        // Cree un rayon sur l'hemisphere centree sur l'axe des y
+        ray = make_float3(
+            rnd(seed) * 2.0f - 1.0f,
+            rnd(seed),
+            rnd(seed) * 2.0f - 1.0f
+        );
+
+    // Pour une distribution uniforme sur la surface de l'hemisphere,
+    // on ignore les rayons qui sont a l'exterieur de son rayon et les
+    // rayons nuls
+    } while (length(ray) > 1.0f || length(ray) < 0.01f);
+    ray = normalize(ray);
+
+    // On cree un repere autour de la normale
+    const float3 Yaxis = normalize(normal);
+    const float3 Xaxis = normalize(make_float3(Yaxis.y - Yaxis.z, -Yaxis.x, Yaxis.x)); // x est orthogonal a y
+    const float3 Zaxis = cross(Xaxis, Yaxis); // z est orthogonal a x et y et est normalise
+
+    // On reexprime le rayon emis dans ce nouveau repere
+    ray = ray.x * Xaxis + ray.y * Yaxis + ray.z * Zaxis;
+    return ray;
 }
 
 static __forceinline__ __device__ void TransformRay(const sutil::Matrix4x4& invModelMatrix, float3& origin, float3& direction)
@@ -423,35 +439,33 @@ extern "C" __global__ void __closesthit__ch()
     const float3 x = origin + t * normalize(direction);
     const float3 V = normalize(origin - x);
 
-    const float3 lumiereAmbiante = params.ambientLight;
-
-    const float& alpha = material.alpha;
-    const float3& couleurAmbiante = material.ka;
     const float3& couleurDiffuse = material.kd;
-    const float3& couleurSpeculaire = material.ks;
-    const float3& couleurReflexion = material.kr;
 
     const float3 omega = -normalize(direction);
 
     float3 color = {0.0f, 0.0f, 0.0f};
 
+    // On flip la normale si elle n'est pas du cote de l'observateur
+    if (dot(N, V) < 0.0f)
+    {
+        N *= -1.0f;
+    }
+
     // vecteur reflechi
-    const float3 r = -omega + 2 * dot(N, omega) * N;
+    const float3 Rr = -omega + 2 * dot(N, omega) * N;
+    const float3 Ra = GetRayOnHemisphere(N, seed);
+    const float3 r = lerp(Rr, Ra, material.roughness);
 
     float3 prd = { 0.0f, 0.0f, 0.0f };
     int depth = optixGetPayload_3();
+    const float reflectionContribution = 0.5f;
 
-    if (depth < params.maxTraceDepth && 
-        (couleurReflexion.x > 0.f || couleurReflexion.y > 0.f || couleurReflexion.z > 0.f))
+    if (depth < params.maxTraceDepth)
     {
         ++depth;
         trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
-        color += prd * couleurReflexion;
+        color += prd * reflectionContribution;
     }
-
-    // Composante ambiante
-    const float3 compAmbiante = lumiereAmbiante * couleurAmbiante;
-    color += compAmbiante;
 
     // Loop qui traite les lumieres de surface
     const int& nbSurfaceLights = params.nbSurfaceLights;
@@ -461,12 +475,6 @@ extern "C" __global__ void __closesthit__ch()
         const float3 v1 = params.surfaceLights[l].v1;
         const float3 v2 = params.surfaceLights[l].v2;
         const float3 corner = params.surfaceLights[l].corner;
-
-        // on s'assure d'etre devant la normal de la lumiere
-        if (dot(lightNormal, normalize(x - corner)) < 0.0f)
-        {
-            continue;
-        }
 
         const float3 samplingPos = corner + rnd(seed) * v1 + rnd(seed) * v2;
         const float3 Lm = normalize(samplingPos - x);
@@ -480,20 +488,11 @@ extern "C" __global__ void __closesthit__ch()
             continue;
         }
         const float3 lightColor = params.surfaceLights[l].color * attenuation;
-
-        // On flip la normale si elle n'est pas du cote de l'observateur
-        if (dot(N, V) < 0.0f)
-        {
-            N *= -1.0f;
-        }
-
         const float cosTheta = dot(N, Lm);
-        const float cosAlpha = dot(N, H);
 
         const float falloff = 1.0f / (1.0f + params.surfaceLights[l].falloff * lightDistance);
         const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
-        const float3 compSpeculaire = cosAlpha < 0.f || cosTheta < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : powf(cosAlpha, alpha)* lightColor * couleurSpeculaire;
-        color += falloff * (compDiffuse + compSpeculaire);
+        color += falloff * compDiffuse;
     }
 
     setPayload(color);

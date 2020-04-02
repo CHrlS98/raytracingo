@@ -125,15 +125,9 @@ void Primitive::Transform(const sutil::Matrix4x4& transform)
 void Primitive::CopyToDevice(device::HitGroupData& data) const
 {
     // Materiel
-    const glm::vec3& ka = m_material.GetKa();
     const glm::vec3& kd = m_material.GetKd();
-    const glm::vec3& ks = m_material.GetKs();
-    const glm::vec3& kr = m_material.GetKr();
-    data.material.basicMaterial.ka = { ka.r, ka.g, ka.b };
     data.material.basicMaterial.kd = { kd.r, kd.g, kd.b };
-    data.material.basicMaterial.ks = { ks.r, ks.g, ks.b };
-    data.material.basicMaterial.kr = { kr.r, kr.g, kr.b };
-    data.material.basicMaterial.alpha = m_material.GetAlpha();
+    data.material.basicMaterial.roughness = m_material.GetRoughness();
 
     // Transformations affines
     data.modelMatrix = m_modelMatrix;
