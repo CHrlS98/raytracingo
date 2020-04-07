@@ -10,7 +10,7 @@ namespace engine
 namespace host
 {
 
-Scene::Scene(const unsigned int& camWidth, const unsigned int& camHeight)
+Scene::Scene(SceneModel sceneModel, const unsigned int& camWidth, const unsigned int& camHeight)
     : m_shapes()
     , m_cameraWidth(camWidth)
     , m_cameraHeight(camHeight)
@@ -19,9 +19,9 @@ Scene::Scene(const unsigned int& camWidth, const unsigned int& camHeight)
     , m_camera(nullptr)
     , m_factory()
     , m_nbObjects(0)
+    , m_sceneModel(sceneModel)
 {
     SetupObjects();
-    SetupLights();
     SetupCamera();
 }
 
@@ -35,33 +35,33 @@ void Scene::CreateFunPlate()
             GetTranslate(cos(M_PIf / 3.0f), sin(M_PIf / 3.0f), 0.0f)
             * GetRotate(M_PIf / 6.0f, 0.0f, 0.0f, 1.0f)
             * GetScale(0.4f, 1.0f, 0.4f),
-            materials::metallicGold)
+            materials::plateMetallicGold)
         );
         primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER,
             GetTranslate(-cos(M_PIf / 3.0f), sin(M_PIf / 3.0f), 0.0f)
             * GetRotate(-M_PIf / 6.0f, 0.0f, 0.0f, 1.0f)
             * GetScale(0.4f, 1.0f, 0.4f),
-            materials::metallicGold)
+            materials::plateMetallicGold)
         );
         primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER,
             GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f)
             * GetScale(0.4f, 1.0f, 0.4f),
-            materials::metallicGold)
+            materials::plateMetallicGold)
         );
         primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
             GetTranslate(-1.0f, 0.0f, 0.0f)
             * GetScale(0.4f, 0.4f, 0.4f),
-            materials::metallicGold)
+            materials::plateMetallicGold)
         );
         primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
             GetTranslate(1.0f, 0.0f, 0.0f)
             * GetScale(0.4f, 0.4f, 0.4f),
-            materials::metallicGold)
+            materials::plateMetallicGold)
         );
         primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
             GetTranslate(0.0f, sqrtf(3.0f), 0.0f)
             * GetScale(0.4f, 0.4f, 0.4f),
-            materials::metallicGold)
+            materials::plateMetallicGold)
         );
         triangle0 = m_factory.CreateCustom(primitives, sutil::Matrix4x4::identity());
     }
@@ -70,70 +70,102 @@ void Scene::CreateFunPlate()
     AddObject(triangle0);
     
     // disks
-    std::pair<std::shared_ptr<Shape>, int> disk0 = m_factory.CreateDisk(GetScale(4.0f, 1.0f, 4.0f), materials::purple);
+    std::pair<std::shared_ptr<Shape>, int> disk0 = m_factory.CreateDisk(GetScale(4.0f, 1.0f, 4.0f), materials::platePurple);
     disk0.first->Transform(GetTranslate(0.0f, -1.0f, 0.0f));
     AddObject(disk0);
-    
-    // rectangles
-    std::pair<std::shared_ptr<Shape>, int> rectangle0 = m_factory.CreateRectangle(disk0.first->GetPrimitives()[0].GetModelMatrix(), materials::purple);
-    //AddObject(rectangle0);
-    
+
     // spheres
-    std::pair<std::shared_ptr<Shape>, int> sphere0 = m_factory.CreateSphere(GetTranslate(-2.5f, 1.0f, -0.5f), materials::cyan);
+    std::pair<std::shared_ptr<Shape>, int> sphere0 = m_factory.CreateSphere(GetTranslate(-2.5f, 1.0f, -0.5f), materials::plateCyan);
     AddObject(sphere0);
     
-    std::pair<std::shared_ptr<Shape>, int> sphere1 = m_factory.CreateSphere(GetScale(1.0f, 2.0f, 1.0f), materials::prettyGreen);
+    std::pair<std::shared_ptr<Shape>, int> sphere1 = m_factory.CreateSphere(GetScale(1.0f, 2.0f, 1.0f), materials::platePrettyGreen);
     sphere1.first->Transform(GetTranslate(1.0f, 1.0f, -2.5f));
     AddObject(sphere1);
     
     // Cylinders
-    std::pair<std::shared_ptr<Shape>, int> cylinder0 = m_factory.CreateClosedCylinder(GetTranslate(-0.5f, 0.1f, 1.0f), materials::darkRed);
+    std::pair<std::shared_ptr<Shape>, int> cylinder0 = m_factory.CreateClosedCylinder(GetTranslate(-0.5f, 0.1f, 1.0f), materials::plateDarkRed);
     AddObject(cylinder0);
     
     // Cubes
-    std::pair<std::shared_ptr<Shape>, int> cube0 = m_factory.CreateCube(GetRotate(M_PIf / 4.0f, 1.0f, 1.0f, 1.0f), materials::yellow);
+    std::pair<std::shared_ptr<Shape>, int> cube0 = m_factory.CreateCube(GetRotate(M_PIf / 4.0f, 1.0f, 1.0f, 1.0f), materials::plateYellow);
     cube0.first->Transform(GetTranslate(2.0f, 0.25f, 0.5f));
     AddObject(cube0);
+
+    // Setup des lumieres
+    std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 6.0f, 0.0f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f),
+        materials::cornellLight
+    );
+
+    Primitive primitive = lightObj.first->GetPrimitives()[0];
+    SurfaceLight light = SurfaceLight(primitive.GetType(), primitive.GetModelMatrix(), primitive.GetMaterial().GetLe(), 0.0f);
+
+    AddObject(lightObj);
+    m_surfaceLights.push_back(light);
 }
 
 void Scene::CreateCornellBox()
 {
+    // Setup des objets
     std::pair<std::shared_ptr<Shape>, int> back = m_factory.CreateRectangle(
-        GetTranslate(0.0f, 0.0f, -2.0f) * GetRotate(M_PIf/2.0f, 1.0f, 0.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f), 
-        materials::white
+        GetTranslate(0.0f, 0.0f, -4.0f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::cornellWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> front = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 0.0f, 4.0f) * GetRotate(-M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::cornellWhite
     );
     std::pair<std::shared_ptr<Shape>, int> left = m_factory.CreateRectangle(
-        GetTranslate(-2.0f, 0.0f, 0.0f) * GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(4.0f, 1.0f, 4.0f),
+        GetTranslate(-4.0f, 0.0f, 0.0f) * GetRotate(-M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 8.0f),
         materials::cornellRed
     );
     std::pair<std::shared_ptr<Shape>, int> right = m_factory.CreateRectangle(
-        GetTranslate(2.0f, 0.0f, 0.0f) * GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(4.0f, 1.0f, 4.0f),
+        GetTranslate(4.0f, 0.0f, 0.0f) * GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 8.0f),
         materials::cornellBlue
     );
     std::pair<std::shared_ptr<Shape>, int> top = m_factory.CreateRectangle(
-        GetTranslate(0.0f, 2.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f),
-        materials::white
+        GetTranslate(0.0f, 4.0f, 0.0f) * GetRotate(M_PIf, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::cornellWhite
     );
     std::pair<std::shared_ptr<Shape>, int> bottom = m_factory.CreateRectangle(
-        GetTranslate(0.0f, -2.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f),
-        materials::white
+        GetTranslate(0.0f, -4.0f, 0.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::cornellWhite
     );
-    std::pair<std::shared_ptr<Shape>, int> box = m_factory.CreateCube(
-        GetTranslate(0.3f, -1.0f, -0.3f),
-        materials::grey
+    std::pair<std::shared_ptr<Shape>, int> box1 = m_factory.CreateCube(
+        GetTranslate(1.3f, -3.0f, 1.3f) * GetRotate(-M_PIf / 6.0f, 0.0f, 1.0f, 0.0f) * GetScale(2.0f, 2.0f, 2.0f),
+        materials::cornellWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> box2 = m_factory.CreateCube(
+        GetTranslate(-1.3f, -2.0f, -1.3f) * GetRotate(M_PIf / 8.0f, 0.0f, 1.0f, 0.0f) * GetScale(2.0f, 4.0f, 2.0f),
+        materials::cornellWhite
     );
 
     AddObject(back);
+    AddObject(front);
     AddObject(left);
     AddObject(right);
     AddObject(top);
     AddObject(bottom);
 
-    AddObject(box);
+    AddObject(box1);
+    AddObject(box2);
+
+    // Setup des lumieres
+    std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 3.95f, 0.0f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f),
+        materials::cornellLight
+    );
+
+    Primitive primitive = lightObj.first->GetPrimitives()[0];
+    SurfaceLight light = SurfaceLight(primitive.GetType(), primitive.GetModelMatrix(), { 1.0f, 1.0f, 1.0f }, 0.0f);
+
+    AddObject(lightObj);
+    m_surfaceLights.push_back(light);
 }
 
 void Scene::CreateSadJailCell()
 {
+    /*
     // spheres
     std::pair<std::shared_ptr<Shape>, int> cylinder = m_factory.CreateClosedCylinder(GetTranslate(0.0f, -3.0f, 0.0f), materials::darkRed);
     AddObject(cylinder);
@@ -197,25 +229,23 @@ void Scene::CreateSadJailCell()
     std::pair<std::shared_ptr<Shape>, int> cylinder2 = m_factory.CreateClosedCylinder(GetScale(0.18f, 1.5f, 0.18f), materials::grey);
     cylinder2.first->Transform(GetTranslate(-1.f, 0.5f, -5.25f));
     AddObject(cylinder2);
+    */
 }
 
 void Scene::SetupObjects()
 {
-    CreateFunPlate();
-    //CreateSadJailCell();
-    //CreateCornellBox();
-}
-
-void Scene::SetupLights()
-{
-    m_ambientLight = { 0.1, 0.1, 0.1 };
-    //sutil::Matrix4x4 sl0ModelMatrix = GetTranslate(0.0f, 10.0f, -25.5f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(30.0f, 1.0, 30.0f);
-    //SurfaceLight light0 = SurfaceLight(PRIMITIVE_TYPE::RECTANGLE, sl0ModelMatrix, { 0.9, 0.9, 0.9 }, 0.01f);
-    //m_surfaceLights.push_back(light0);
-
-    sutil::Matrix4x4 sl1ModelMatrix = GetTranslate(0.0f, 8.0f, 0.0f) * GetScale(8.0f, 1.0f, 8.0f);
-    SurfaceLight light1 = SurfaceLight(PRIMITIVE_TYPE::RECTANGLE, sl1ModelMatrix, { 1.0, 1.0, 1.0 }, 0.0f);
-    m_surfaceLights.push_back(light1);
+    switch (m_sceneModel)
+    {
+    case SceneModel::CORNELL:
+        CreateCornellBox();
+        break;
+    case SceneModel::JAIL:
+        CreateSadJailCell();
+        break;
+    case SceneModel::PLATE:
+        CreateFunPlate();
+        break;
+    }
 }
 
 void Scene::SetupCamera()

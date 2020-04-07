@@ -54,6 +54,8 @@ public:
     OptixAabb GetAabb() const;
     inline const char* GetIntersectionProgram() const { return m_intersectionProgram.c_str(); }
     inline sutil::Matrix4x4 GetModelMatrix() const { return m_modelMatrix; }
+    inline PRIMITIVE_TYPE GetType() const { return m_type; }
+    inline BasicMaterial GetMaterial() const { return m_material; }
 
 private:
     PRIMITIVE_TYPE m_type;

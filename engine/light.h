@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp> 
 #include <primitive.h> 
+#include<shape.h>
+#include<memory>
 
 namespace engine
 {
@@ -38,15 +40,6 @@ public:
     /// Getter pour la propriete m_falloff
     /// \return La constante de decroissance de la lumiere
     inline float GetFalloff() const { return m_falloff; };
-    /// Getter pour la propriete m_intersectionProgram
-    /// \return La c-string du programme d'intersection de la lumière
-    inline const char* GetIntersectionProgram() const { return m_intersectionProgram.c_str(); }
-    /// Getter pour la propriete m_aabb
-    /// \return Le volume englobant de la lumiere
-    inline OptixAabb GetAabb() const { return m_aabb; }
-
-    /// Copie la representation de l'objet sur le GPU dans data
-    void SurfaceLight::CopyToDevice(device::HitGroupData& data) const;
 
 private:
     /// Type de primitive de la surface
@@ -65,12 +58,6 @@ private:
     glm::vec3 m_color;
     /// Constante de decroissante de la lumiere. Doit etre <= 1
     float m_falloff;
-    /// Programme d'intersection de la lumière
-    std::string m_intersectionProgram;
-    /// Volume englobant de la lumiere
-    OptixAabb m_aabb;
-
-    void BuildAabb();
 };
 
 } // namespace host
