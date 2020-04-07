@@ -25,34 +25,6 @@ SurfaceLight::SurfaceLight(PRIMITIVE_TYPE type, const sutil::Matrix4x4& modelMat
     m_v2 = glm::vec3(v2.x, v2.y, v2.z);
 
     m_normal = glm::normalize(glm::cross(m_v1, m_v2));
-
-    switch (m_type)
-    {
-    case engine::host::PRIMITIVE_TYPE::RECTANGLE:
-        m_intersectionProgram = "__intersection__rectangle";
-        break;
-    default:
-        break;
-    }
-    BuildAabb();
 }
-
-void SurfaceLight::BuildAabb()
-{
-    const float eps = 0.00001f;
-    const glm::vec3 maxCorner = m_corner + m_v1 + m_v2;
-    m_aabb.maxX = std::max(m_corner.x, maxCorner.x) + eps;
-    m_aabb.minX = std::min(m_corner.x, maxCorner.x) - eps;
-    m_aabb.maxY = std::max(m_corner.y, maxCorner.y) + eps;
-    m_aabb.minY = std::min(m_corner.y, maxCorner.y) - eps;
-    m_aabb.maxZ = std::max(m_corner.z, maxCorner.z) + eps;
-    m_aabb.minZ = std::min(m_corner.z, maxCorner.z) - eps;
-}
-
-void SurfaceLight::CopyToDevice(device::HitGroupData& data) const
-{
-    data.modelMatrix = m_modelMatrix;
-}
-
 } // namespace host
 } // namespace engine

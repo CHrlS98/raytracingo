@@ -11,13 +11,13 @@ class BasicMaterial
 public:
     /// Constructeur pour un objet noir 100% mirroir
     BasicMaterial();
-
+    
     /// Constructeur
-    /// \param[in] kd Couleur de la composante diffuse
-    /// \param[in] roughness Coefficient de reflexion speculaire
     BasicMaterial(
-        const glm::vec3& kd, 
-        const float& roughness);
+        const glm::vec3& kd,
+        const glm::vec3& kr,
+        const glm::vec3& le,
+        const float& specularity);
 
     /// Copy constructeur
     BasicMaterial(const BasicMaterial& material);
@@ -27,13 +27,20 @@ public:
 
     /// Getters
     inline glm::vec3 GetKd() const { return m_kd; }
-    inline float GetRoughness() const { return m_roughness; }
+    inline glm::vec3 GetKr() const { return m_kr; }
+    inline glm::vec3 GetLe() const { return m_Le; }
+    inline float GetSpecularity() const { return m_specularity; }
 
 private:
     /// Couleur du materiau
     glm::vec3 m_kd;
-    /// Coefficient de rugosite
-    float m_roughness;
+    /// Proportion de lumiere reflechie
+    glm::vec3 m_kr;
+    /// Emission
+    glm::vec3 m_Le;
+    /// Coefficient de specularite
+    /// une specularite de 1000 represente un materiel tres reflechissant
+    float m_specularity;
 };
 } // namespace host
 } // namespace engine

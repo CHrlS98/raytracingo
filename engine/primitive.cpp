@@ -126,8 +126,12 @@ void Primitive::CopyToDevice(device::HitGroupData& data) const
 {
     // Materiel
     const glm::vec3& kd = m_material.GetKd();
+    const glm::vec3& kr = m_material.GetKr();
+    const glm::vec3 Le = m_material.GetLe();
     data.material.basicMaterial.kd = { kd.r, kd.g, kd.b };
-    data.material.basicMaterial.roughness = m_material.GetRoughness();
+    data.material.basicMaterial.kr = { kr.r, kr.g, kr.b };
+    data.material.basicMaterial.Le = { Le.r, Le.g, Le.b };
+    data.material.basicMaterial.specularity = m_material.GetSpecularity();
 
     // Transformations affines
     data.modelMatrix = m_modelMatrix;

@@ -15,10 +15,17 @@ namespace host
 class Shape;
 class SurfaceLight;
 
+enum class SceneModel
+{
+    JAIL,
+    CORNELL,
+    PLATE
+};
+
 class Scene
 {
 public:
-    Scene(const unsigned int& camWidth, const unsigned int& camHeight);
+    Scene(SceneModel sceneModel, const unsigned int& camWidth, const unsigned int& camHeight);
     ~Scene() = default;
 
     inline std::vector<std::shared_ptr<Shape>> GetShapes() const { return m_shapes; }
@@ -40,9 +47,9 @@ private:
     int m_nbObjects;
     unsigned int m_cameraWidth;
     unsigned int m_cameraHeight;
+    SceneModel m_sceneModel;
     void SetupCamera();
     void SetupObjects();
-    void SetupLights();
     void CreateFunPlate();
     void CreateSadJailCell();
     void CreateCornellBox();

@@ -62,8 +62,12 @@ struct BasicMaterial
 {
     /// Couleur diffuse
     float3 kd;
+    /// Proportion couleur reflechie
+    float3 kr;
     /// Coefficient de reflexion speculaire
-    float roughness;
+    float specularity;
+    // Emission
+    float3 Le;
 };
 
 struct SurfaceLight
@@ -132,10 +136,10 @@ struct Params
     float3 ambientLight;
     /// Handle vers la geometrie de la scene
     OptixTraversableHandle handle;
-    /// Temps ecoule depuis le debut du programme
-    double time;
     /// Nombre total de frame ecoules depuis le debut de l'affichage
     unsigned int frameCount;
+    /// Vrai pour activer le pur path tracing
+    bool enablePathTracing;
 };
 } // namespace device
 

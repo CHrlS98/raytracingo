@@ -31,7 +31,7 @@ const char* CLOSEST_HIT_LIGHT_PROGRAM = "__closesthit__light";
 const char* CLOSEST_HIT_OCCLUSION_PROGRAM = "__closesthit__full_occlusion";
 const char* PARAMS_STRUCT_NAME = "params";
 const char* KERNEL_CUDA_NAME = "kernel.cu";
-const float MOVEMENT_SPEED = 5.0f;
+const float MOVEMENT_SPEED = 0.5f;
 
 static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -56,7 +56,6 @@ static void mouseButtonCallback(GLFWwindow* window, int button, int action, int 
 static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
 {
     RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
-    const double deltaTime = glfwGetTime() - state->time;
     if (state)
     {
         if (state->mouseButton == GLFW_MOUSE_BUTTON_RIGHT)
@@ -75,12 +74,12 @@ static void cursorPosCallback(GLFWwindow* window, double xpos, double ypos)
         {
             if (static_cast<double>(state->trackball->GetPrevPosY()) < ypos)
             {
-                state->trackball->moveUp(deltaTime * MOVEMENT_SPEED);
+                state->trackball->moveUp(MOVEMENT_SPEED);
                 state->cameraChangedFlag = true;
             }
             else if (static_cast<double>(state->trackball->GetPrevPosY()) > ypos)
             {
-                state->trackball->moveDown(deltaTime * MOVEMENT_SPEED);
+                state->trackball->moveDown(MOVEMENT_SPEED);
                 state->cameraChangedFlag = true;
             }
             state->trackball->startTracking(static_cast<int>(xpos), static_cast<int>(ypos));
@@ -93,38 +92,44 @@ static void windowSizeCallback(GLFWwindow* window, int32_t res_x, int32_t res_y)
     RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
     if (state)
     {
-        state->params->image_width = res_x;
-        state->params->image_height = res_y;
-        state->cameraChangedFlag = true;
-        state->windowResizeFlag = true;
+        if (res_x > 0 && res_y > 0 && res_x != state->params->image_width && res_y != state->params->image_height)
+        {
+            state->params->image_width = res_x;
+            state->params->image_height = res_y;
+            state->cameraChangedFlag = true;
+            state->windowResizeFlag = true;
+        }
     }
 }
 
-static void keyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t /*mods*/)
+static void keyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, int32_t action, int32_t mods)
 {
     RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
-    const double deltaTime = glfwGetTime() - state->time;
     if (state)
     {
-        if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_D))
+        if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_D) && action == GLFW_PRESS)
         {
-            state->trackball->moveRight(static_cast<float>(deltaTime) * MOVEMENT_SPEED);
+            state->trackball->moveRight(MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
-        if ((key == GLFW_KEY_LEFT || key == GLFW_KEY_A))
+        if ((key == GLFW_KEY_LEFT || key == GLFW_KEY_A) && action == GLFW_PRESS)
         {
-            state->trackball->moveLeft(static_cast<float>(deltaTime) * MOVEMENT_SPEED);
+            state->trackball->moveLeft(MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
-        if ((key == GLFW_KEY_DOWN || key == GLFW_KEY_S))
+        if ((key == GLFW_KEY_DOWN || key == GLFW_KEY_S) && action == GLFW_PRESS && mods != GLFW_MOD_CONTROL)
         {
-            state->trackball->moveBackward(static_cast<float>(deltaTime) * MOVEMENT_SPEED);
+            state->trackball->moveBackward(MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
-        if ((key == GLFW_KEY_UP|| key == GLFW_KEY_W))
+        if ((key == GLFW_KEY_UP|| key == GLFW_KEY_W) && action == GLFW_PRESS)
         {
-            state->trackball->moveForward(static_cast<float>(deltaTime) * MOVEMENT_SPEED);
+            state->trackball->moveForward(MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
+        }
+        if (key == GLFW_KEY_S && action == GLFW_PRESS && mods == GLFW_MOD_CONTROL && !state->sendSaveRequest)
+        {
+            state->sendSaveRequest = true;
         }
     }
 }
@@ -138,7 +143,6 @@ static void scrollCallback(GLFWwindow* window, double xscroll, double yscroll)
         state->cameraChangedFlag = true;
     }
 }
-
 } // namespace
 
 static void context_log_cb(unsigned int level, const char* tag, const char* message, void* /*callbackdata */)
@@ -146,7 +150,7 @@ static void context_log_cb(unsigned int level, const char* tag, const char* mess
     std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
 }
 
-Renderer::Renderer(std::shared_ptr<Scene> scene)
+Renderer::Renderer(std::shared_ptr<Scene> scene, RenderMode renderMode)
     : m_optixContext(nullptr)
     , m_module(nullptr)
     , m_moduleCompileOptions({})
@@ -162,6 +166,7 @@ Renderer::Renderer(std::shared_ptr<Scene> scene)
     , m_traversableHandle(0)
     , m_scene(scene)
     , m_state()
+    , m_renderMode(renderMode)
 {
     Initialize();
 }
@@ -186,7 +191,6 @@ void Renderer::Initialize()
 
 void Renderer::InitOptix()
 {
-    std::cout << "RayTracinGO: initializing OptiX ..." << std::endl;
     // Initialize CUDA with a no-op call to the CUDA runtime API
     CUDA_CHECK(cudaFree(0));
 
@@ -201,12 +205,10 @@ void Renderer::InitOptix()
     // Initialize the OptiX API, loading all API entry points
     OPTIX_CHECK(optixInit());
 
-    std::cout << "RayTracinGO: successfully initialized OptiX" << std::endl;
 }
 
 void Renderer::CreateContext()
 {
-    std::cout << "RayTracinGO: creating OptiX context ..." << std::endl;
     const int deviceID = 0;
     CUDA_CHECK(cudaSetDevice(deviceID));
     CUDA_CHECK(cudaStreamCreate(&m_cudaStream));
@@ -227,13 +229,10 @@ void Renderer::CreateContext()
 
     // Create the optix context on the GPU
     OPTIX_CHECK(optixDeviceContextCreate(m_cudaContext, &options, &m_optixContext));
-    std::cout << "RayTracinGO: successfully created OptiX context" << std::endl;
 }
 
 void Renderer::CreateModule()
 {
-    std::cout << "RayTracinGO: creating OptiX module ..." << std::endl;
-
     m_moduleCompileOptions.maxRegisterCount = OPTIX_COMPILE_DEFAULT_MAX_REGISTER_COUNT;     // Set to 0 for no explicit limit
     m_moduleCompileOptions.optLevel = OptixCompileOptimizationLevel::OPTIX_COMPILE_OPTIMIZATION_DEFAULT;
     m_moduleCompileOptions.debugLevel = OptixCompileDebugLevel::OPTIX_COMPILE_DEBUG_LEVEL_LINEINFO;
@@ -273,8 +272,6 @@ void Renderer::CreateModule()
 
 OptixProgramGroup Renderer::CreateRayGenPrograms() const
 {
-    std::cout << "RayTracinGO: creating the Ray Generation programs ..." << std::endl;
-
     // Create ray generation group
     OptixProgramGroup rayGenerationProgram;
     OptixProgramGroupOptions rayGenerationOptions = {}; // No options yet
@@ -340,8 +337,6 @@ void Renderer::CreateRayGen()
 
 OptixProgramGroup Renderer::CreateMissPrograms()
 {
-    std::cout << "RayTracinGO: creating the Miss programs ..." << std::endl;
-
     char log[2048];
     size_t sizeof_log = sizeof(log);
 
@@ -406,7 +401,7 @@ void Renderer::CreateMiss()
 void Renderer::CreateShapes()
 {
     const std::vector<std::shared_ptr<Shape>> shapes = m_scene->GetShapes();
-    const size_t& nbObjects = static_cast<size_t>(m_scene->GetNbObjects() + m_scene->GetSurfaceLights().size());
+    const size_t& nbObjects = static_cast<size_t>(m_scene->GetNbObjects());
 
     // Aabb initialization
     OptixAabb* aabb = new OptixAabb[nbObjects];
@@ -445,30 +440,7 @@ void Renderer::CreateShapes()
             ++i;
         }
     }
-    for (SurfaceLight sl : m_scene->GetSurfaceLights())
-    {
-        // Create aabb
-        aabb[i] = sl.GetAabb();
-        aabbInputFlags[i] = OptixGeometryFlags::OPTIX_GEOMETRY_FLAG_DISABLE_ANYHIT;
-        sbtIndex[i] = i;
 
-        // Create radiance program group
-        OptixProgramGroup radianceProgram = CreateHitGroupProgram(sl.GetIntersectionProgram(), device::RAY_TYPE_RADIANCE, true);
-        m_programs.push_back(radianceProgram);
-
-        // Create radiance sbt records
-        sl.CopyToDevice(hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE].data);
-        OPTIX_CHECK(optixSbtRecordPackHeader(radianceProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_RADIANCE]));
-
-        // Create occlusion program group
-        OptixProgramGroup occlusionProgram = CreateHitGroupProgram(sl.GetIntersectionProgram(), device::RAY_TYPE_OCCLUSION, true);
-        m_programs.push_back(occlusionProgram);
-
-        // Create occlusion sbt records
-        sl.CopyToDevice(hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION].data);
-        OPTIX_CHECK(optixSbtRecordPackHeader(occlusionProgram, &hitgroupRecords[device::RAY_TYPE_COUNT * i + device::RAY_TYPE_OCCLUSION]));
-        ++i;
-    }
     // Build acceleration structure on GPU
     BuildAccelerationStructure(aabb, aabbInputFlags, sbtIndex, nbObjects);
 
@@ -483,8 +455,6 @@ void Renderer::CreateShapes()
 
 OptixProgramGroup Renderer::CreateHitGroupProgram(const char* intersectionProgram, device::RayType type, bool isLight)
 {
-    std::cout << "RayTracinGO: creating HitGroup program ..." << std::endl;
-
     OptixProgramGroup program;
     OptixProgramGroupOptions options = {}; // No options yet
     OptixProgramGroupDesc desc = {};
@@ -673,10 +643,8 @@ void Renderer::BuildAccelerationStructure(
 
 void Renderer::CreatePipeline()
 {
-    std::cout << "RayTracinGO: creating the pipeline ..." << std::endl;
-
     m_pipelineLinkOptions = {};
-    m_pipelineLinkOptions.maxTraceDepth = 3; // Maximum trace recursion depth. The maximum is 31
+    m_pipelineLinkOptions.maxTraceDepth = 5; // Maximum trace recursion depth. The maximum is 31
     m_pipelineLinkOptions.debugLevel = OptixCompileDebugLevel::OPTIX_COMPILE_DEBUG_LEVEL_FULL;
     m_pipelineLinkOptions.overrideUsesMotionBlur = false;
 
@@ -747,12 +715,22 @@ void Renderer::Update(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device::Par
 {
     // Reinitialiser le compteur de frame
     params.frameCount = m_state.cameraChangedFlag || m_state.windowResizeFlag || firstLaunch ? 0 : params.frameCount + 1;
+
+    if (m_state.sendSaveRequest)
+    {
+        std::cout << "Saving to file output.ppm" << std::endl;
+        sutil::ImageBuffer buffer;
+        buffer.data = outputBuffer->getHostPointer();
+        buffer.width = outputBuffer->width();
+        buffer.height = outputBuffer->height();
+        buffer.pixel_format = sutil::BufferImageFormat::UNSIGNED_BYTE4;
+        sutil::displayBufferFile("output.ppm", buffer, false);
+        m_state.sendSaveRequest = false;
+        std::cout << "Save complete" << std::endl;
+    }
+
     // Mettre a jour la camera
     UpdateCamera();
-    // Mettre le temps a jour
-    const double& time = glfwGetTime();
-    m_state.time = time;
-    params.time = time;
     // Mettre a jour les dimensions de l'image
     ResizeCUDABuffer(outputBuffer, params);
 }
@@ -833,7 +811,7 @@ void Renderer::LaunchFrame(sutil::CUDAOutputBuffer<uchar4>* outputBuffer, device
 
 void Renderer::InitGLFWCallbacks(GLFWwindow* window, RendererState* state)
 {
-    glfwSetInputMode(window, GLFW_STICKY_KEYS, GLFW_TRUE);
+    glfwSetInputMode(window, GLFW_STICKY_KEYS, false);
     // Donne acces aux callback au params
     glfwSetWindowUserPointer(window, state);
     glfwSetWindowSizeCallback(window, windowSizeCallback);
@@ -856,6 +834,7 @@ void Renderer::Display()
     params.sqrtSamplePerPixel = 1;
     params.handle = m_traversableHandle;
     params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
+    params.enablePathTracing = m_renderMode == RenderMode::PATH_TRACING;
     params.frameCount = 0;
     CUDA_CHECK(cudaMalloc(
         reinterpret_cast<void**>(&params.accum_buffer),
@@ -880,12 +859,16 @@ void Renderer::Display()
     int framebuf_res_y = 0;
     unsigned int frameCount = 0;
 
-    m_state = { &params, nullptr, false, false, glfwGetTime(), -1 };
+    m_state.params = &params;
     m_state.trackball.reset(new sutil::Trackball);
     m_state.trackball->setCamera(m_scene->GetCamera().get());
     m_state.trackball->setMoveSpeed(10.0f);
     m_state.trackball->setReferenceFrame(make_float3(1.0f, 0.0f, 0.0f), make_float3(0.0f, 0.0f, 1.0f), make_float3(0.0f, 1.0f, 0.0f));
     m_state.trackball->setGimbalLock(true);
+    m_state.cameraChangedFlag = false;
+    m_state.windowResizeFlag = false;
+    m_state.sendSaveRequest = false;
+    m_state.mouseButton = -1;
     InitGLFWCallbacks(window, &m_state);
 
     bool firstLaunch = true;

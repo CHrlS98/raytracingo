@@ -38,9 +38,10 @@
 void printUsageAndExit( const char* argv0 )
 {
     std::cerr << "Usage  : " << argv0 << " [options]\n";
-    std::cerr << "Options: --file | -f <filename>      Specify file for image output\n";
-    std::cerr << "         --help | -h                 Print this usage message\n";
-    std::cerr << "         --dim=<width>x<height>      Set image dimensions; defaults to 512x384\n";
+    std::cerr << "         --help | -h                           Print this usage message\n";
+    std::cerr << "         --dim=<width>x<height>                Set image dimensions; defaults to 512x384\n";
+    std::cerr << "         --mode=distributed OR path            Set render mode to distributed ray tracing or path tracing\n";
+    std::cerr << "         --scene=cornell OR plateau OR prison  Select a scene to render\n";
     exit( 1 );
 }
 
@@ -48,18 +49,62 @@ int main( int argc, char* argv[] )
 {
     int width  = 600;
     int height =  600;
+    bool argModeFound = false;
+    bool argSceneFound = false;
+    engine::host::RenderMode renderMode = engine::host::RenderMode::PATH_TRACING;
+    engine::host::SceneModel sceneModel = engine::host::SceneModel::CORNELL;
 
     for( int i = 1; i < argc; ++i )
     {
         const std::string arg( argv[i] );
         if( arg == "--help" || arg == "-h" )
         {
-            printUsageAndExit( argv[0] );
+            printUsageAndExit(argv[0]);
         }
         else if( arg.substr( 0, 6 ) == "--dim=" )
         {
             const std::string dims_arg = arg.substr( 6 );
             sutil::parseDimensions( dims_arg.c_str(), width, height );
+        }
+        else if (arg.substr(0, 7) == "--mode=")
+        {
+            const std::string mode_arg = arg.substr(7);
+            argModeFound = true;
+            if (mode_arg == "distributed")
+            {
+                renderMode = engine::host::RenderMode::DISTRIBUTED_RAY_TRACING;
+            }
+            else if (mode_arg == "path")
+            {
+                renderMode = engine::host::RenderMode::PATH_TRACING;
+            }
+            else
+            {
+                std::cerr << "Unknown option '" << arg << "'\n";
+                printUsageAndExit(argv[0]);
+            }
+        }
+        else if (arg.substr(0, 8) == "--scene=")
+        {
+            const std::string mode_arg = arg.substr(8);
+            argSceneFound = true;
+            if (mode_arg == "plateau")
+            {
+                sceneModel = engine::host::SceneModel::PLATE;
+            }
+            else if (mode_arg == "cornell")
+            {
+                sceneModel = engine::host::SceneModel::CORNELL;
+            }
+            else if (mode_arg == "prison")
+            {
+                sceneModel = engine::host::SceneModel::JAIL;
+            }
+            else
+            {
+                std::cerr << "Unknown option '" << arg << "'\n";
+                printUsageAndExit(argv[0]);
+            }
         }
         else
         {
@@ -68,10 +113,21 @@ int main( int argc, char* argv[] )
         }
     }
 
+    if (!argModeFound)
+    {
+        std::cerr << "Argument manquant: --mode=" << std::endl;
+        printUsageAndExit(argv[0]);
+    }
+    if (!argSceneFound)
+    {
+        std::cerr << "Argument manquant: --scene=" << std::endl;
+        printUsageAndExit(argv[0]);
+    }
+
     try
     {
-        auto scene = std::make_shared<engine::host::Scene>(width, height);
-        engine::host::Renderer renderer = engine::host::Renderer(scene);
+        auto scene = std::make_shared<engine::host::Scene>(sceneModel, width, height);
+        engine::host::Renderer renderer = engine::host::Renderer(scene, renderMode);
         renderer.Display();
     }
     catch( std::exception& e )

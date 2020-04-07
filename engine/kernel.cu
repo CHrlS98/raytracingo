@@ -117,7 +117,6 @@ extern "C" __global__ void __raygen__rg()
     const uint32_t sqrtSamplePerPixel = params.sqrtSamplePerPixel;
     const uint32_t image_index = params.image_width*idx.y + idx.x;
     unsigned int seed = tea<16>(image_index, params.frameCount);
-    const float ratioNewImage = 1.0f / static_cast<float>(params.frameCount + 1);
     
     for (unsigned int i = 0; i < sqrtSamplePerPixel; ++i)
     {
@@ -140,7 +139,7 @@ extern "C" __global__ void __raygen__rg()
                 origin,
                 direction,
                 RAY_TYPE_RADIANCE,
-                0.00f,  // tmin
+                0.05f,  // tmin
                 1e16f,  // tmax
                 &payload_rgb,
                 &depth,
@@ -155,6 +154,7 @@ extern "C" __global__ void __raygen__rg()
     if (params.frameCount > 0)
     {
         float3 previousColor = make_float3(params.accum_buffer[pxlIndex]);
+        const float ratioNewImage = 1.0f / static_cast<float>(params.frameCount + 1);
         currentColor = lerp(previousColor, currentColor, ratioNewImage);
     }
     params.accum_buffer[pxlIndex] = make_float4(currentColor, 1.0f);
@@ -168,31 +168,26 @@ extern "C" __global__ void __miss__ms()
     setPayload(make_float3(rt_data->r, rt_data->g, rt_data->b));
 }
 
-static __forceinline__ __device__ float3 GetRayOnHemisphere(const float3& normal, unsigned int& seed)
+static __forceinline__ __device__ float3 GetRayOnHemisphere(const float3& normal, const float3& direction, float coefficient, unsigned int& seed)
 {
     float3 ray;
     do
     {
-        // Cree un rayon sur l'hemisphere centree sur l'axe des y
-        ray = make_float3(
-            rnd(seed) * 2.0f - 1.0f,
-            rnd(seed),
-            rnd(seed) * 2.0f - 1.0f
-        );
+        float r1 = rnd(seed);
+        float r2 = rnd(seed);
 
-    // Pour une distribution uniforme sur la surface de l'hemisphere,
-    // on ignore les rayons qui sont a l'exterieur de son rayon et les
-    // rayons nuls
-    } while (length(ray) > 1.0f || length(ray) < 0.01f);
-    ray = normalize(ray);
+        float phi = 2.f * M_PIf * r1;
+        float theta = acosf(powf((1.f - r2), 1.f/(coefficient + 1.f)));
 
-    // On cree un repere autour de la normale
-    const float3 Yaxis = normalize(normal);
-    const float3 Xaxis = normalize(make_float3(Yaxis.y - Yaxis.z, -Yaxis.x, Yaxis.x)); // x est orthogonal a y
-    const float3 Zaxis = cross(Xaxis, Yaxis); // z est orthogonal a x et y et est normalise
+        // On cree un repere autour du vecteur direction
+        const float3 Yaxis = normalize(direction);
+        const float3 Xaxis = normalize(make_float3(Yaxis.y - Yaxis.z, -Yaxis.x, Yaxis.x)); // x est orthogonal a y
+        const float3 Zaxis = cross(Yaxis, Xaxis); // z est orthogonal a x et y et est normalise
 
-    // On reexprime le rayon emis dans ce nouveau repere
-    ray = ray.x * Xaxis + ray.y * Yaxis + ray.z * Zaxis;
+        // On reexprime le rayon emis dans ce nouveau repere
+        ray = sin(theta) * cos(phi) * Xaxis + cos(theta) * Yaxis - sin(theta) * sin(phi) * Zaxis;
+    } while (dot(normal, ray) < 0.f);
+
     return ray;
 }
 
@@ -401,17 +396,19 @@ extern "C" __global__ void __intersection__rectangle()
 
             if (0.0f < dot(p - p0, a) && dot(p - p0, a) < width && 0.0f < dot(p - p0, b) && dot(p - p0, b) < width)
             {
-                TransformNormal(inverseMM, n);
-                unsigned int nx, ny, nz;
-                nx = float_as_int(n.x);
-                ny = float_as_int(n.y);
-                nz = float_as_int(n.z);
-            
-                optixReportIntersection(
-                    t,      // t hit
-                    0,      // user hit kind
-                    nx, ny, nz
-                );
+                if (dot(n, dir) < 0.0f)
+                {
+                    TransformNormal(inverseMM, n);
+                    unsigned int nx, ny, nz;
+                    nx = float_as_int(n.x);
+                    ny = float_as_int(n.y);
+                    nz = float_as_int(n.z);
+                    optixReportIntersection(
+                        t,      // t hit
+                        0,      // user hit kind
+                        nx, ny, nz
+                    );
+                }
             }
         }
     }
@@ -419,13 +416,11 @@ extern "C" __global__ void __intersection__rectangle()
 
 extern "C" __global__ void __closesthit__ch()
 {
-    const float3 normale =
-        make_float3(
-            int_as_float(optixGetAttribute_0()),
-            int_as_float(optixGetAttribute_1()),
-            int_as_float(optixGetAttribute_2())
-        );
-    float3 N = normalize(normale);
+    float3 N = normalize(make_float3(
+        int_as_float(optixGetAttribute_0()),
+        int_as_float(optixGetAttribute_1()),
+        int_as_float(optixGetAttribute_2())
+    ));
 
     unsigned int seed = optixGetPayload_4();
 
@@ -439,38 +434,47 @@ extern "C" __global__ void __closesthit__ch()
     const float3 x = origin + t * normalize(direction);
     const float3 V = normalize(origin - x);
 
-    const float3& couleurDiffuse = material.kd;
-
-    const float3 omega = -normalize(direction);
-
-    float3 color = {0.0f, 0.0f, 0.0f};
-
     // On flip la normale si elle n'est pas du cote de l'observateur
     if (dot(N, V) < 0.0f)
     {
         N *= -1.0f;
     }
 
-    // vecteur reflechi
-    const float3 Rr = -omega + 2 * dot(N, omega) * N;
-    const float3 Ra = GetRayOnHemisphere(N, seed);
-    const float3 r = lerp(Rr, Ra, material.roughness);
-
+    const float3& couleurDiffuse = material.kd;
+    const float3& Le = material.Le;
+    float3 color = {0.0f, 0.0f, 0.0f};
     float3 prd = { 0.0f, 0.0f, 0.0f };
-    int depth = optixGetPayload_3();
-    const float reflectionContribution = 0.5f;
-
-    if (depth < params.maxTraceDepth)
+    if (params.enablePathTracing)
     {
-        ++depth;
-        trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
-        color += prd * reflectionContribution;
+        if (Le.x > 0.01f)
+        {
+            setPayload(Le);
+        }
+        else
+        {
+            int depth = optixGetPayload_3();
+            if (depth < params.maxTraceDepth)
+            {
+                const float3 Ra = GetRayOnHemisphere(N, N, 0.0f, seed);
+
+                ++depth;
+                trace(params.handle, x, Ra, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
+                color += dot(N, Ra) * couleurDiffuse;
+                color *= prd;
+            }
+            setPayload(color);
+        }
     }
-
-    // Loop qui traite les lumieres de surface
-    const int& nbSurfaceLights = params.nbSurfaceLights;
-    for (int l = 0; l < nbSurfaceLights; ++l)
+    else
     {
+        if (length(Le) > 0.01f)
+        {
+            // lumiere affichee en blanc
+            setPayload({ 1.0f, 1.0f, 1.0f });
+            return;
+        }
+        // Choix d'une lumiere vers laquelle envoyer un rayon
+        const int l = rnd(seed)* (params.nbSurfaceLights - 1);
         const float3 lightNormal = params.surfaceLights[l].normal;
         const float3 v1 = params.surfaceLights[l].v1;
         const float3 v2 = params.surfaceLights[l].v2;
@@ -481,32 +485,43 @@ extern "C" __global__ void __closesthit__ch()
         const float lightDistance = length(samplingPos - x);
         const float3 H = normalize(Lm + V);
 
-        float3 attenuation = { 1.0f, 1.0f, 1.0f };
-        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, rayEpsilon, lightDistance - rayEpsilon, &attenuation, &depth, seed);
-        if (attenuation.x < 0.001f && attenuation.y < 0.001f && attenuation.z < 0.001f)
-        {
-            continue;
-        }
-        const float3 lightColor = params.surfaceLights[l].color * attenuation;
-        const float cosTheta = dot(N, Lm);
+        int depth = optixGetPayload_3();
+        float3 illumination = { 1.0f, 1.0f, 1.0f };
+        trace(params.handle, x, Lm, RAY_TYPE_OCCLUSION, rayEpsilon, lightDistance - rayEpsilon, &illumination, &depth, seed);
+        const float3 lightColor = abs(dot(Lm, lightNormal)) * illumination;
 
         const float falloff = 1.0f / (1.0f + params.surfaceLights[l].falloff * lightDistance);
-        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(cosTheta, 0.0f) * lightColor * couleurDiffuse;
+        const float3 compDiffuse = dot(N, V) < 0.f ? make_float3(0.0f, 0.0f, 0.0f) : max(dot(N, Lm), 0.0f) * lightColor * couleurDiffuse;
         color += falloff * compDiffuse;
+
+        if (depth < params.maxTraceDepth)
+        {
+            // vecteur reflechi
+            const float3 omega = -normalize(direction);
+            const float3 Rr = -omega + 2 * dot(N, omega) * N;
+
+            const float3 r = material.specularity < 0.5f ?
+                GetRayOnHemisphere(N, N, 0.0f, seed) :
+                GetRayOnHemisphere(N, Rr, material.specularity, seed);
+
+            ++depth;
+            trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
+            color += material.kr * prd;
+        }
+        setPayload(color);
     }
-
-    setPayload(color);
-}
-
-extern "C" __global__ void __closesthit__light()
-{
-    setPayload({ 1.0f, 1.0f, 1.0f });
 }
 
 extern "C" __global__ void __closesthit__full_occlusion()
 {
-    // materiel 100% opaque
-    setPayload({ 0.0f, 0.0f, 0.0f });
+    const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
+    const BasicMaterial& material = hgData->material.basicMaterial;
+    float3 payload = make_float3(
+        min(material.Le.x, 1.0f),
+        min(material.Le.y, 1.0f),
+        min(material.Le.z, 1.0f)
+    );
+    setPayload(payload);
 }
 } // namespace host
 } // namespace engine

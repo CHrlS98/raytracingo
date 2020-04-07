@@ -23,7 +23,7 @@ struct RendererState
     std::shared_ptr<sutil::Trackball> trackball;
     bool cameraChangedFlag;
     bool windowResizeFlag;
-    double time;
+    bool sendSaveRequest;
     int mouseButton;
 };
 
@@ -36,10 +36,16 @@ enum LogCallbackLevel
     Print = 4       // Status or progress messages
 };
 
+enum class RenderMode
+{
+    DISTRIBUTED_RAY_TRACING,
+    PATH_TRACING
+};
+
 class Renderer
 {
 public:
-    Renderer(std::shared_ptr<Scene> scene);
+    Renderer(std::shared_ptr<Scene> scene, RenderMode renderMode);
     ~Renderer();
 
     void Display();
@@ -65,6 +71,7 @@ private:
     CUdeviceptr m_deviceGasOutputBuffer;
     OptixTraversableHandle m_traversableHandle;
 
+    RenderMode m_renderMode;
     RendererState m_state;
 
     void Initialize();
