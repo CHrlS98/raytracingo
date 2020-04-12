@@ -17,7 +17,7 @@ class SurfaceLight;
 
 enum class SceneModel
 {
-    JAIL,
+    SLIDE,
     CORNELL,
     PLATE
 };
@@ -51,7 +51,7 @@ private:
     void SetupCamera();
     void SetupObjects();
     void CreateFunPlate();
-    void CreateSadJailCell();
+    void CreateSlide();
     void CreateCornellBox();
     void AddObject(const std::pair<std::shared_ptr<Shape>, int>& object);
     sutil::Matrix4x4 GetScale(float sx, float sy, float sz) const;

@@ -31,7 +31,7 @@ const char* CLOSEST_HIT_LIGHT_PROGRAM = "__closesthit__light";
 const char* CLOSEST_HIT_OCCLUSION_PROGRAM = "__closesthit__full_occlusion";
 const char* PARAMS_STRUCT_NAME = "params";
 const char* KERNEL_CUDA_NAME = "kernel.cu";
-const float MOVEMENT_SPEED = 0.5f;
+const float MOVEMENT_SPEED = 0.2f;
 
 static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
 {
@@ -107,22 +107,22 @@ static void keyCallback(GLFWwindow* window, int32_t key, int32_t /*scancode*/, i
     RendererState* state = static_cast<RendererState*>(glfwGetWindowUserPointer(window));
     if (state)
     {
-        if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_D) && action == GLFW_PRESS)
+        if ((key == GLFW_KEY_RIGHT || key == GLFW_KEY_D) && (action == GLFW_REPEAT || action == GLFW_PRESS))
         {
             state->trackball->moveRight(MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
-        if ((key == GLFW_KEY_LEFT || key == GLFW_KEY_A) && action == GLFW_PRESS)
+        if ((key == GLFW_KEY_LEFT || key == GLFW_KEY_A) && (action == GLFW_REPEAT || action == GLFW_PRESS))
         {
             state->trackball->moveLeft(MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
-        if ((key == GLFW_KEY_DOWN || key == GLFW_KEY_S) && action == GLFW_PRESS && mods != GLFW_MOD_CONTROL)
+        if ((key == GLFW_KEY_DOWN || key == GLFW_KEY_S) && (action == GLFW_REPEAT || action == GLFW_PRESS) && mods != GLFW_MOD_CONTROL)
         {
             state->trackball->moveBackward(MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
         }
-        if ((key == GLFW_KEY_UP|| key == GLFW_KEY_W) && action == GLFW_PRESS)
+        if ((key == GLFW_KEY_UP|| key == GLFW_KEY_W) && (action == GLFW_REPEAT || action == GLFW_PRESS))
         {
             state->trackball->moveForward(MOVEMENT_SPEED);
             state->cameraChangedFlag = true;
@@ -150,7 +150,7 @@ static void context_log_cb(unsigned int level, const char* tag, const char* mess
     std::cerr << "[" << std::setw(2) << level << "][" << std::setw(12) << tag << "]: " << message << "\n";
 }
 
-Renderer::Renderer(std::shared_ptr<Scene> scene, RenderMode renderMode)
+Renderer::Renderer(std::shared_ptr<Scene> scene, RenderMode renderMode, int sqrtSamplePerPixel)
     : m_optixContext(nullptr)
     , m_module(nullptr)
     , m_moduleCompileOptions({})
@@ -167,6 +167,7 @@ Renderer::Renderer(std::shared_ptr<Scene> scene, RenderMode renderMode)
     , m_scene(scene)
     , m_state()
     , m_renderMode(renderMode)
+    , m_sqrtSamplePerPixel(sqrtSamplePerPixel)
 {
     Initialize();
 }
@@ -831,7 +832,7 @@ void Renderer::Display()
     params.image = nullptr;
     params.image_width = width;
     params.image_height = height;
-    params.sqrtSamplePerPixel = 1;
+    params.sqrtSamplePerPixel = m_sqrtSamplePerPixel;
     params.handle = m_traversableHandle;
     params.maxTraceDepth = m_pipelineLinkOptions.maxTraceDepth;
     params.enablePathTracing = m_renderMode == RenderMode::PATH_TRACING;
