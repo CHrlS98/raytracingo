@@ -14,7 +14,6 @@ Scene::Scene(SceneModel sceneModel, const unsigned int& camWidth, const unsigned
     : m_shapes()
     , m_cameraWidth(camWidth)
     , m_cameraHeight(camHeight)
-    , m_ambientLight()
     , m_backgroundColor()
     , m_camera(nullptr)
     , m_factory()
@@ -272,7 +271,7 @@ void Scene::SetupCamera()
 {
     m_backgroundColor = { 0.0, 0.0, 0.0 };
     m_camera.reset(new sutil::Camera(
-            { 0.0f, 0.0f, 14.0f }, // Position de l'oeil
+            { 0.0f, 3.0f, 14.0f }, // Position de l'oeil
             { 0.0f, 0.0f, 0.0f }, // Point au centre du regard
             { 0.0f, 1.0f, 0.0f }, // Vecteur haut
             60.0f, // Field of view
