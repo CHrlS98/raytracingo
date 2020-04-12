@@ -106,10 +106,7 @@ struct HitGroupData
     sutil::Matrix4x4 modelMatrix;
 
     /// Materiel de l'objet a representer
-    union
-    {
-        BasicMaterial basicMaterial;
-    } material;
+    BasicMaterial material;
 };
 
 struct Params
@@ -132,14 +129,14 @@ struct Params
     int maxTraceDepth;
     /// Tableau des lumieres de surface
     SurfaceLight surfaceLights[MAX_LIGHTS];
-    /// Couleur de l'eclairage ambiant
-    float3 ambientLight;
     /// Handle vers la geometrie de la scene
     OptixTraversableHandle handle;
     /// Nombre total de frame ecoules depuis le debut de l'affichage
     unsigned int frameCount;
     /// Vrai pour activer le pur path tracing
     bool enablePathTracing;
+    /// Vrai pour utiliser un coefficient ambiant pour les zones dans l'obscurite
+    bool useAmbientLight;
 };
 } // namespace device
 

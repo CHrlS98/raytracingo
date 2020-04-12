@@ -9,6 +9,7 @@ namespace engine
 {
 namespace host
 {
+/// Implementation d'une lumiere de surface
 class SurfaceLight
 {
 public:

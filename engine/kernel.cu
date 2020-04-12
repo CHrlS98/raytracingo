@@ -425,7 +425,7 @@ extern "C" __global__ void __closesthit__ch()
     unsigned int seed = optixGetPayload_4();
 
     const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
-    const BasicMaterial& material = hgData->material.basicMaterial;
+    const BasicMaterial& material = hgData->material;
 
     const float t = optixGetRayTmax();
     const float rayEpsilon = 1e-6f * max(t*t, 1.0f);
@@ -500,13 +500,27 @@ extern "C" __global__ void __closesthit__ch()
             const float3 omega = -normalize(direction);
             const float3 Rr = -omega + 2 * dot(N, omega) * N;
 
-            const float3 r = material.specularity < 0.5f ?
-                GetRayOnHemisphere(N, N, 0.0f, seed) :
-                GetRayOnHemisphere(N, Rr, material.specularity, seed);
-
-            ++depth;
-            trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
-            color += material.kr * prd;
+            if (params.useAmbientLight)
+            {
+                if (material.specularity > 0.5f)
+                {
+                    ++depth;
+                    const float3 r = GetRayOnHemisphere(N, Rr, material.specularity, seed);
+                    trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
+                    color += material.kr * prd;
+                }
+                // eclairage ambiant
+                color += material.kd * make_float3(0.1f, 0.1f, 0.1f);
+            }
+            else
+            {
+                ++depth;
+                const float3 r = material.specularity < 0.5f ?
+                    GetRayOnHemisphere(N, N, 0.0f, seed) :
+                    GetRayOnHemisphere(N, Rr, material.specularity, seed);
+                trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
+                color += material.kr * prd;
+            }
         }
         setPayload(color);
     }
@@ -515,7 +529,7 @@ extern "C" __global__ void __closesthit__ch()
 extern "C" __global__ void __closesthit__full_occlusion()
 {
     const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
-    const BasicMaterial& material = hgData->material.basicMaterial;
+    const BasicMaterial& material = hgData->material;
     float3 payload = make_float3(
         min(material.Le.x, 1.0f),
         min(material.Le.y, 1.0f),

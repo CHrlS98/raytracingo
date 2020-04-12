@@ -41,8 +41,9 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --help | -h                           Print this usage message\n";
     std::cerr << "         --dim=<width>x<height>                Set image dimensions; defaults to 512x384\n";
     std::cerr << "         --mode=distributed OR path            Set render mode to distributed ray tracing or path tracing\n";
-    std::cerr << "         --scene=cornell OR plateau OR prison  Select a scene to render\n";
+    std::cerr << "         --scene=cornell OR plateau OR slide   Select a scene to render\n";
     std::cerr << "         --sample=<sample>                     Set the number of sample*sample of rays lunched per pixel; default is 1\n";
+    std::cerr << "         --useAmbient                          Specify to use an ambient coefficient for global illumination\n";
     exit( 1 );
 }
 
@@ -53,6 +54,7 @@ int main( int argc, char* argv[] )
     int sample = 1;
     bool argModeFound = false;
     bool argSceneFound = false;
+    bool useAmbientCoefficient = false;
     engine::host::RenderMode renderMode = engine::host::RenderMode::PATH_TRACING;
     engine::host::SceneModel sceneModel = engine::host::SceneModel::CORNELL;
 
@@ -113,6 +115,10 @@ int main( int argc, char* argv[] )
             const std::string sample_arg = arg.substr(9);
             sample = atoi(sample_arg.c_str());
         }
+        else if (arg.substr(0, 12) == "--useAmbient")
+        {
+            useAmbientCoefficient = true;
+        }
         else
         {
             std::cerr << "Unknown option '" << arg << "'\n";
@@ -134,7 +140,7 @@ int main( int argc, char* argv[] )
     try
     {
         auto scene = std::make_shared<engine::host::Scene>(sceneModel, width, height);
-        engine::host::Renderer renderer = engine::host::Renderer(scene, renderMode, sample);
+        engine::host::Renderer renderer = engine::host::Renderer(scene, renderMode, sample, useAmbientCoefficient);
         renderer.Display();
     }
     catch( std::exception& e )
