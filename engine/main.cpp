@@ -42,13 +42,15 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --dim=<width>x<height>                Set image dimensions; defaults to 512x384\n";
     std::cerr << "         --mode=distributed OR path            Set render mode to distributed ray tracing or path tracing\n";
     std::cerr << "         --scene=cornell OR plateau OR prison  Select a scene to render\n";
+    std::cerr << "         --sample=<sample>                     Set the number of sample*sample of rays lunched per pixel; default is 1\n";
     exit( 1 );
 }
 
 int main( int argc, char* argv[] )
 {
     int width  = 600;
-    int height =  600;
+    int height = 600;
+    int sample = 1;
     bool argModeFound = false;
     bool argSceneFound = false;
     engine::host::RenderMode renderMode = engine::host::RenderMode::PATH_TRACING;
@@ -96,15 +98,20 @@ int main( int argc, char* argv[] )
             {
                 sceneModel = engine::host::SceneModel::CORNELL;
             }
-            else if (mode_arg == "prison")
+            else if (mode_arg == "slide")
             {
-                sceneModel = engine::host::SceneModel::JAIL;
+                sceneModel = engine::host::SceneModel::SLIDE;
             }
             else
             {
                 std::cerr << "Unknown option '" << arg << "'\n";
                 printUsageAndExit(argv[0]);
             }
+        }
+        else if (arg.substr(0, 9) == "--sample=")
+        {
+            const std::string sample_arg = arg.substr(9);
+            sample = atoi(sample_arg.c_str());
         }
         else
         {
@@ -127,7 +134,7 @@ int main( int argc, char* argv[] )
     try
     {
         auto scene = std::make_shared<engine::host::Scene>(sceneModel, width, height);
-        engine::host::Renderer renderer = engine::host::Renderer(scene, renderMode);
+        engine::host::Renderer renderer = engine::host::Renderer(scene, renderMode, sample);
         renderer.Display();
     }
     catch( std::exception& e )

@@ -45,7 +45,7 @@ enum class RenderMode
 class Renderer
 {
 public:
-    Renderer(std::shared_ptr<Scene> scene, RenderMode renderMode);
+    Renderer(std::shared_ptr<Scene> scene, RenderMode renderMode, int sqrtSamplePerPixel);
     ~Renderer();
 
     void Display();
@@ -73,6 +73,8 @@ private:
 
     RenderMode m_renderMode;
     RendererState m_state;
+
+    int m_sqrtSamplePerPixel;
 
     void Initialize();
 
