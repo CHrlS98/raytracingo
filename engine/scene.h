@@ -21,7 +21,8 @@ enum class SceneModel
     SLIDE,
     CORNELL,
     PLATE,
-    MIRROR_SPHERES
+    MIRROR_SPHERES,
+    SOFT_MIRRORS
 };
 
 /// Classe gerant la scene dont on veut faire un rendu
@@ -110,6 +111,9 @@ private:
 
     /// Creer la scene MIRROR_SPHERES
     void CreateMirrorSpheres();
+
+    /// Creer la scene SOFT_MIRRORS
+    void CreateSoftMirrors();
 
     /// Ajouter un objet dans la scene lors de l'initialisation
     /// \param[in] object Paire contenant la Shape et le nombre de primitives qu'elle contient

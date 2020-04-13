@@ -183,6 +183,72 @@ const BasicMaterial cornellLight(
     1.0f
 );
 
+// Materiaux pour la scene Soft Mirrors
+
+/// Mirroir 0
+const BasicMaterial softMirrorsMirror0(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    500000.0f
+);
+
+/// Mirroir 1
+const BasicMaterial softMirrorsMirror1(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    100000.0f
+);
+
+/// Mirroir 2
+const BasicMaterial softMirrorsMirror2(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    50000.0f
+);
+
+/// Mirroir 3
+const BasicMaterial softMirrorsMirror3(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    10000.0f
+);
+
+/// Mirroir 4
+const BasicMaterial softMirrorsMirror4(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    5000.0f
+);
+
+/// Mirroir 5
+const BasicMaterial softMirrorsMirror5(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    1000.0f
+);
+
+/// Mirroir 6
+const BasicMaterial softMirrorsMirror6(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    500.0f
+);
+
+/// Mirroir 7
+const BasicMaterial softMirrorsMirror7(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    100.0f
+);
+
 } // namespace materials
 } // namespace host
 } // namespace engine

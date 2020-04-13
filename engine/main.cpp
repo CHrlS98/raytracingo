@@ -47,6 +47,7 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "             slide\n";
     std::cerr << "             cornell\n";
     std::cerr << "             mirror_spheres\n";
+    std::cerr << "             soft_mirrors\n";
     std::cerr << "         --sample=<sample>                     Set the number of sample*sample of rays lunched per pixel; default is 1\n";
     std::cerr << "         --useAmbient                          Specify to use an ambient coefficient for global illumination\n";
     exit( 1 );
@@ -112,6 +113,10 @@ int main( int argc, char* argv[] )
             else if (mode_arg == "mirror_spheres")
             {
                 sceneModel = engine::host::SceneModel::MIRROR_SPHERES;
+            }
+            else if (mode_arg == "soft_mirrors")
+            {
+                sceneModel = engine::host::SceneModel::SOFT_MIRRORS;
             }
             else
             {
