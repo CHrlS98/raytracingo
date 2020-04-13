@@ -49,6 +49,41 @@ const BasicMaterial white(
     1.0f
 );
 
+
+// Materiaux de la scene Mirror Spheres
+
+/// Mirroir
+const BasicMaterial mirrorSpheresBlackMirror(
+    glm::vec3(0.05f, 0.05f, 0.05f),
+    glm::vec3(1.0f, 1.0f, 1.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    100000.0f
+);
+
+/// Plancher
+const BasicMaterial mirrorSpheresGroundMat(
+    glm::vec3(0.9765f, 0.651f, 0.6549f),
+    glm::vec3(0.7f),
+    glm::vec3(0.0f),
+    100000.0f
+);
+
+/// Orange metallique
+const BasicMaterial mirrorSpheresMetallicOrange(
+    glm::vec3(0.8549f, 0.4078f, 0.0588f),
+    glm::vec3(0.5f, 0.5f, 0.5f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    10000.0f
+);
+
+/// Silver
+const BasicMaterial mirrorSpheresSilver(
+    glm::vec3(0.7529f, 0.7529f, 0.7529f),
+    glm::vec3(0.5f),
+    glm::vec3(0.0f),
+    10000.0f
+);
+
 // Materiaux du plateau de primitives
 
 /// Couleur doree metallique
