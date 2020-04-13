@@ -20,7 +20,8 @@ enum class SceneModel
 {
     SLIDE,
     CORNELL,
-    PLATE
+    PLATE,
+    FILIP
 };
 
 /// Classe gerant la scene dont on veut faire un rendu
@@ -103,6 +104,15 @@ private:
 
     /// Creer la scene SLIDE
     void CreateSlide();
+
+    /// Creer la scene FILIP
+    void CreateFilip();
+
+    /// Creer la scene CHECKERED
+    void CreateCheckeredFloor();
+
+    /// Creer la scene BALLS
+    void CreateBalls();
 
     /// Creer la scene CORNELL
     void CreateCornellBox();

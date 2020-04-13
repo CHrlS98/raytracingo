@@ -5,6 +5,8 @@
 #include <materials.h>
 #include <sutil/Matrix.h>
 
+#include "random.h"
+
 namespace engine
 {
 namespace host
@@ -251,6 +253,306 @@ void Scene::CreateSlide()
     m_surfaceLights.push_back(light);
 }
 
+//void Scene::CreateFilip()
+//{
+//    // Setup des objets
+//    std::pair<std::shared_ptr<Shape>, int> back = m_factory.CreateRectangle(
+//        GetTranslate(0.0f, 0.0f, -8.0f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(16.0f, 1.0f, 8.0f),
+//        materials::cornellRed
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> front = m_factory.CreateRectangle(
+//        GetTranslate(0.0f, 0.0f, 8.0f) * GetRotate(-M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(16.0f, 1.0f, 8.0f),
+//        materials::FilipWhite
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> left = m_factory.CreateRectangle(
+//        GetTranslate(-8.0f, 0.0f, 0.0f) * GetRotate(-M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 16.0f),
+//        materials::cornellRed
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> right = m_factory.CreateRectangle(
+//        GetTranslate(8.0f, 0.0f, 0.0f) * GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 16.0f),
+//        materials::cornellRed
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> top = m_factory.CreateRectangle(
+//        GetTranslate(0.0f, 4.0f, 0.0f) * GetRotate(M_PIf, 0.0f, 0.0f, 1.0f) * GetScale(16.0f, 1.0f, 16.0f),
+//        materials::FilipWhite
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> bottom = m_factory.CreateRectangle(
+//        GetTranslate(0.0f, -4.0f, 0.0f) * GetScale(16.0f, 1.0f, 16.0f),
+//        materials::FilipWhite
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> wall = m_factory.CreateCube(
+//        GetTranslate(-1.2f, 0.0f, -7.0f) * GetScale(0.5f, 8.0f, 2.0f),
+//        materials::cornellRed
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> sphere0 = m_factory.CreateSphere(
+//        GetTranslate(2.0f, -3.0, -5.5f) * GetScale(1.0f, 1.0f, 1.0f),
+//        materials::platePrettyGreen
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> sphere1 = m_factory.CreateSphere(
+//        GetTranslate(5.5f, -3.0, -5.5f) * GetScale(1.0f, 1.0f, 1.0f),
+//        materials::FilipGreen
+//    );
+//
+//    AddObject(back);
+//    AddObject(front);
+//    AddObject(left);
+//    AddObject(right);
+//    AddObject(top);
+//    AddObject(bottom);
+//
+//    AddObject(sphere0);
+//    AddObject(sphere1);
+//    AddObject(wall);
+//
+//    // Setup des lumieres
+//    //std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+//    //    GetTranslate(-5.0f, 3.96f, -5.0f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(3.0f, 1.0f, 0.0f),
+//    //    materials::FilipLight
+//    //);
+//    std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+//        GetTranslate(-5.0f, 0.0f, -7.99f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) *  GetScale(4.0f, 1.0f, 4.0f),
+//        materials::FilipLight
+//    );
+//
+//    Primitive primitive = lightObj.first->GetPrimitives()[0];
+//    SurfaceLight light = SurfaceLight(primitive.GetType(), primitive.GetModelMatrix(), { 1.0f, 1.0f, 1.0f }, 0.02f);
+//
+//    AddObject(lightObj);
+//    m_surfaceLights.push_back(light);
+//}
+
+//void Scene::CreateFilip()
+//{
+//    // Setup des objets
+//    std::pair<std::shared_ptr<Shape>, int> back = m_factory.CreateRectangle(
+//        GetTranslate(0.0f, 0.0f, -.8f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(1.6f, 1.0f, 0.8f),
+//        materials::cornellRed
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> front = m_factory.CreateRectangle(
+//        GetTranslate(0.0f, 0.0f, 0.8f) * GetRotate(-M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(1.6f, 1.0f, 0.8f),
+//        materials::FilipWhite
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> left = m_factory.CreateRectangle(
+//        GetTranslate(-0.8f, 0.0f, 0.0f) * GetRotate(-M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(0.8f, 1.0f, 1.6f),
+//        materials::cornellRed
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> right = m_factory.CreateRectangle(
+//        GetTranslate(0.8f, 0.0f, 0.0f) * GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(0.8f, 1.0f, 1.6f),
+//        materials::cornellRed
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> top = m_factory.CreateRectangle(
+//        GetTranslate(0.0f, 0.4f, 0.0f) * GetRotate(M_PIf, 0.0f, 0.0f, 1.0f) * GetScale(1.6f, 1.0f, 1.6f),
+//        materials::FilipWhite
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> bottom = m_factory.CreateRectangle(
+//        GetTranslate(0.0f, -0.4f, 0.0f) * GetScale(1.6f, 1.0f, 1.60f),
+//        materials::FilipWhite
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> wall = m_factory.CreateCube(
+//        GetTranslate(-0.12f, 0.0f, -0.7f) * GetScale(0.05f, 0.8f, 0.2f),
+//        materials::cornellRed
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> sphere0 = m_factory.CreateSphere(
+//        GetTranslate(0.2f, -0.3f, -0.55f) * GetScale(0.1f, 0.1f, 0.1f),
+//        materials::platePrettyGreen
+//    );
+//    std::pair<std::shared_ptr<Shape>, int> sphere1 = m_factory.CreateSphere(
+//        GetTranslate(0.55f, -0.30, -0.55f) * GetScale(0.1f, 0.1f, 0.1f),
+//        materials::FilipGreen
+//    );
+//
+//    AddObject(back);
+//    AddObject(front);
+//    AddObject(left);
+//    AddObject(right);
+//    AddObject(top);
+//    AddObject(bottom);
+//
+//    AddObject(sphere0);
+//    AddObject(sphere1);
+//    AddObject(wall);
+//
+//    // Setup des lumieres
+//    //std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+//    //    GetTranslate(-5.0f, 3.96f, -5.0f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(3.0f, 1.0f, 0.0f),
+//    //    materials::FilipLight
+//    //);
+//    std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+//        GetTranslate(-0.5f, 0.0f, -0.799f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) *  GetScale(0.4f, 1.0f, 0.4f),
+//        materials::FilipLight
+//    );
+//
+//    std::pair<std::shared_ptr<Shape>, int> cylinderLight0;
+//    std::pair<std::shared_ptr<Shape>, int> cylinderLight1;
+//    std::pair<std::shared_ptr<Shape>, int> cylinderLight2;
+//    {
+//        std::vector<Primitive> primitives;
+//        primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER,
+//            GetScale(0.026f, 0.035f, 0.026f),
+//            materials::cornellRed)
+//        );
+//        primitives.push_back(Primitive(PRIMITIVE_TYPE::DISK,
+//            GetTranslate(0.0f, 0.0349f, 0.0f) * GetScale(0.02496f, 1.0f, 0.02496f),
+//            materials::FilipCylinderLight)
+//        );
+//        cylinderLight0 = m_factory.CreateCustom(primitives, sutil::Matrix4x4::identity());
+//        cylinderLight0.first->Transform(GetTranslate(0.0f, 0.4f - 0.03498f, 0.0f));
+//        cylinderLight1 = m_factory.CreateCustom(primitives, sutil::Matrix4x4::identity());
+//        cylinderLight1.first->Transform(GetTranslate(-0.3f, 0.4f - 0.03498f, 0.0f));
+//        cylinderLight2 = m_factory.CreateCustom(primitives, sutil::Matrix4x4::identity());
+//        cylinderLight2.first->Transform(GetTranslate(0.3f, 0.4f - 0.03498f, 0.0f));
+//    }
+//
+//
+//    AddObject(lightObj);
+//    //AddObject(cylinderLight0);
+//    //AddObject(cylinderLight1);
+//    //AddObject(cylinderLight2);
+//}
+
+void Scene::CreateCheckeredFloor()
+{
+    // Setup des objets
+    std::pair<std::shared_ptr<Shape>, int> back = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 0.0f, -8.0f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(16.0f, 1.0f, 8.0f),
+        materials::FilipWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> front = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 0.0f, 8.0f) * GetRotate(-M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(16.0f, 1.0f, 8.0f),
+        materials::FilipWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> left = m_factory.CreateRectangle(
+        GetTranslate(-8.0f, 0.0f, 0.0f) * GetRotate(-M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 16.0f),
+        materials::FilipWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> right = m_factory.CreateRectangle(
+        GetTranslate(8.0f, 0.0f, 0.0f) * GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 16.0f),
+        materials::FilipWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> top = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 4.0f, 0.0f) * GetRotate(M_PIf, 0.0f, 0.0f, 1.0f) * GetScale(16.0f, 1.0f, 16.0f),
+        materials::FilipWhite
+    );
+
+    unsigned int seed = tea<16>(12, 1234567);
+    bool red = true;
+    for (int i = 0; i < 8; i++)
+    {
+        red = (i % 2 == 0) ? true : false;
+        for (int j = 0; j < 8; j++)
+        {
+            if (red)
+            {
+                std::pair<std::shared_ptr<Shape>, int> floor = m_factory.CreateCube(
+                    GetTranslate(-7.0f + (i * 2.0f), -5.0f + rnd(seed), -7.0f + (j * 2.0f)) * GetScale(2.0f, 2.0f, 2.0f),
+                    materials::cornellRed
+                );
+                AddObject(floor);
+                red = false;
+            }
+            else
+            {
+                std::pair<std::shared_ptr<Shape>, int> floor = m_factory.CreateCube(
+                    GetTranslate(-7.0f + (i * 2.0f), -5.0f + rnd(seed), -7.0f + (j * 2.0f)) * GetScale(2.0f, 2.0f, 2.0f),
+                    materials::cornellBlue
+                );
+                AddObject(floor);
+                red = true;
+            }
+        }
+    }
+
+    AddObject(back);
+    AddObject(front);
+    AddObject(left);
+    AddObject(right);
+    AddObject(top);
+
+
+    // Setup des lumieres
+    std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 3.96f, 0.0f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(6.0f, 1.0f, 6.0f),
+        materials::FilipLight
+    );
+
+    Primitive primitive = lightObj.first->GetPrimitives()[0];
+    SurfaceLight light = SurfaceLight(primitive.GetType(), primitive.GetModelMatrix(), { 1.0f, 1.0f, 1.0f }, 0.01f);
+    m_surfaceLights.push_back(light);
+
+    AddObject(lightObj);
+}
+
+void Scene::CreateBalls()
+{
+    // Setup des objets
+    std::pair<std::shared_ptr<Shape>, int> back = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 0.0f, -8.0f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(16.0f, 1.0f, 8.0f),
+        materials::FilipWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> front = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 0.0f, 8.0f) * GetRotate(-M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(16.0f, 1.0f, 8.0f),
+        materials::FilipWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> left = m_factory.CreateRectangle(
+        GetTranslate(-8.0f, 0.0f, 0.0f) * GetRotate(-M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 16.0f),
+        materials::FilipWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> right = m_factory.CreateRectangle(
+        GetTranslate(8.0f, 0.0f, 0.0f) * GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 16.0f),
+        materials::FilipWhite
+    );
+    std::pair<std::shared_ptr<Shape>, int> top = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 4.0f, 0.0f) * GetRotate(M_PIf, 0.0f, 0.0f, 1.0f) * GetScale(16.0f, 1.0f, 16.0f),
+        materials::FilipWhite
+    );
+
+    unsigned int seed = tea<16>(12, 1234567);
+    std::pair<std::shared_ptr<Shape>, int> bottom = m_factory.CreateRectangle(
+        GetTranslate(0.0f, -4.0f, 0.0f) * GetScale(16.0f, 1.0f, 16.0f),
+        materials::FilipWhite
+    );
+    AddObject(bottom);
+    std::vector<BasicMaterial> mat;
+    mat.push_back(materials::cornellRed);
+    mat.push_back(materials::cornellBlue);
+    mat.push_back(materials::cornellWhite);
+    mat.push_back(materials::cornellLight);
+    mat.push_back(materials::cream);
+    mat.push_back(materials::plateCyan);
+    mat.push_back(materials::platePurple);
+    mat.push_back(materials::platePrettyGreen);
+    mat.push_back(materials::plateYellow);
+    for (int i = 0; i < 16; i++)
+    {
+        for (int j = 0; j < 16; j++)
+        {
+            std::pair<std::shared_ptr<Shape>, int> sphere = m_factory.CreateSphere(
+                GetTranslate(-7.5f + (i * 1.0f) + (-0.2f + (0.4f * rnd(seed))), -3.5f + (6.0f * rnd(seed)), -7.5f + (j * 1.0f) + (-0.2f + (0.4f * rnd(seed)))) * GetScale(0.25f, 0.25f, 0.25f),
+                mat[(int)(8 * rnd(seed))]
+            );
+            AddObject(sphere);
+        }
+    }
+
+    AddObject(back);
+    AddObject(front);
+    AddObject(left);
+    AddObject(right);
+    AddObject(top);
+
+    // Setup des lumieres
+    std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 3.96f, 0.0f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(6.0f, 1.0f, 6.0f),
+        materials::FilipLight
+    );
+
+    Primitive primitive = lightObj.first->GetPrimitives()[0];
+    SurfaceLight light = SurfaceLight(primitive.GetType(), primitive.GetModelMatrix(), { 1.0f, 1.0f, 1.0f }, 0.01f);
+    m_surfaceLights.push_back(light);
+
+    //AddObject(lightObj);
+}
+
 void Scene::SetupObjects()
 {
     switch (m_sceneModel)
@@ -260,6 +562,9 @@ void Scene::SetupObjects()
         break;
     case SceneModel::SLIDE:
         CreateSlide();
+        break;
+    case SceneModel::FILIP:
+        CreateBalls();
         break;
     case SceneModel::PLATE:
         CreateFunPlate();

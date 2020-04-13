@@ -509,6 +509,10 @@ extern "C" __global__ void __closesthit__ch()
                     trace(params.handle, x, r, RAY_TYPE_RADIANCE, rayEpsilon, 1e6f, &prd, &depth, seed);
                     color += material.kr * prd;
                 }
+                else
+                {
+                    color += prd * material.kd * 0.1f;
+                }
                 // eclairage ambiant
                 color += material.kd * make_float3(0.1f, 0.1f, 0.1f);
             }

@@ -104,6 +104,10 @@ int main( int argc, char* argv[] )
             {
                 sceneModel = engine::host::SceneModel::SLIDE;
             }
+            else if (mode_arg == "filip")
+            {
+                sceneModel = engine::host::SceneModel::FILIP;
+            }
             else
             {
                 std::cerr << "Unknown option '" << arg << "'\n";

@@ -148,6 +148,41 @@ const BasicMaterial cornellLight(
     1.0f
 );
 
+const BasicMaterial FilipLight(
+    glm::vec3(0.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(12.0f),
+    1.0f
+);
+
+const BasicMaterial FilipCylinderLight(
+    glm::vec3(0.0f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(200.0f),
+    1.0f
+);
+
+const BasicMaterial FilipGreen(
+    glm::vec3(0.1f, 0.8f, 1.0f),
+    glm::vec3(0.8f, 0.8f, 0.8f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    10.0f
+);
+
+const BasicMaterial FilipBlue(
+    glm::vec3(0.0f, 0.0f, 1.0f),
+    glm::vec3(0.3f, 0.3f, 0.8f),
+    glm::vec3(0.0f, 0.0f, 0.5f),
+    1.0f
+);
+
+const BasicMaterial FilipWhite(
+    glm::vec3(0.9f, 0.9f, 0.9f),
+    glm::vec3(0.5f, 0.5f, 0.5f),
+    glm::vec3(0.0f, 0.0f, 0.0f),
+    100.0f
+);
+
 } // namespace materials
 } // namespace host
 } // namespace engine

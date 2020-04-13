@@ -613,7 +613,7 @@ void Renderer::BuildAccelerationStructure(
 void Renderer::CreatePipeline()
 {
     m_pipelineLinkOptions = {};
-    m_pipelineLinkOptions.maxTraceDepth = 3; // Niveau maximum de recursivite. Le maximum que supporte OptiX est 31.
+    m_pipelineLinkOptions.maxTraceDepth = 5; // Niveau maximum de recursivite. Le maximum que supporte OptiX est 31.
     m_pipelineLinkOptions.debugLevel = OptixCompileDebugLevel::OPTIX_COMPILE_DEBUG_LEVEL_FULL;
     m_pipelineLinkOptions.overrideUsesMotionBlur = false;
 
