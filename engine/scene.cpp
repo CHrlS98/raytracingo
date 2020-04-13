@@ -24,6 +24,67 @@ Scene::Scene(SceneModel sceneModel, const unsigned int& camWidth, const unsigned
     SetupCamera();
 }
 
+void Scene::CreateMirrorSpheres()
+{
+    // Setup des objets
+    std::pair<std::shared_ptr<Shape>, int> back = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 0.0f, -4.0f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::mirrorSpheresBlackMirror
+    );
+    std::pair<std::shared_ptr<Shape>, int> front = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 0.0f, 4.0f) * GetRotate(-M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::mirrorSpheresBlackMirror
+    );
+    std::pair<std::shared_ptr<Shape>, int> left = m_factory.CreateRectangle(
+        GetTranslate(-4.0f, 0.0f, 0.0f) * GetRotate(-M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::mirrorSpheresBlackMirror
+    );
+    std::pair<std::shared_ptr<Shape>, int> right = m_factory.CreateRectangle(
+        GetTranslate(4.0f, 0.0f, 0.0f) * GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::mirrorSpheresBlackMirror
+    );
+    std::pair<std::shared_ptr<Shape>, int> top = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 4.0f, 0.0f) * GetRotate(M_PIf, 0.0f, 0.0f, 1.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::mirrorSpheresBlackMirror
+    );
+    std::pair<std::shared_ptr<Shape>, int> bottom = m_factory.CreateRectangle(
+        GetTranslate(0.0f, -4.0f, 0.0f) * GetScale(8.0f, 1.0f, 8.0f),
+        materials::mirrorSpheresGroundMat
+    );
+
+    std::pair<std::shared_ptr<Shape>, int> sphereOrange = m_factory.CreateSphere(
+        sutil::Matrix4x4::identity(),
+        materials::mirrorSpheresMetallicOrange
+    );
+
+    std::pair<std::shared_ptr<Shape>, int> sphereSilver = m_factory.CreateSphere(
+        GetTranslate(1.0f, 1.0f, -1.0f),
+        materials::mirrorSpheresSilver
+    );
+
+    AddObject(back);
+    AddObject(front);
+    AddObject(left);
+    AddObject(bottom);
+    AddObject(top);
+    AddObject(right);
+
+    AddObject(sphereSilver);
+    AddObject(sphereOrange);
+
+    // Setup des lumieres
+    std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 3.95f, 0.0f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f),
+        materials::cornellLight
+    );
+
+    Primitive primitive = lightObj.first->GetPrimitives()[0];
+    SurfaceLight light = SurfaceLight(primitive.GetType(), primitive.GetModelMatrix(), { 1.0f, 1.0f, 1.0f }, 0.1f);
+
+    AddObject(lightObj);
+    m_surfaceLights.push_back(light);
+}
+
 void Scene::CreateFunPlate()
 {
     // custom shape
@@ -260,6 +321,9 @@ void Scene::SetupObjects()
         break;
     case SceneModel::SLIDE:
         CreateSlide();
+        break;
+    case SceneModel::MIRROR_SPHERES:
+        CreateMirrorSpheres();
         break;
     case SceneModel::PLATE:
         CreateFunPlate();
