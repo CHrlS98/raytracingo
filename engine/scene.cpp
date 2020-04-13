@@ -85,6 +85,116 @@ void Scene::CreateMirrorSpheres()
     m_surfaceLights.push_back(light);
 }
 
+void Scene::CreateSoftMirrors()
+{
+    // custom shape
+    std::pair<std::shared_ptr<Shape>, int> triangle0;
+    {
+        std::vector<Primitive> primitives;
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER,
+            GetTranslate(cos(M_PIf / 3.0f), sin(M_PIf / 3.0f), 0.0f)
+            * GetRotate(M_PIf / 6.0f, 0.0f, 0.0f, 1.0f)
+            * GetScale(0.4f, 1.0f, 0.4f),
+            materials::plateMetallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER,
+            GetTranslate(-cos(M_PIf / 3.0f), sin(M_PIf / 3.0f), 0.0f)
+            * GetRotate(-M_PIf / 6.0f, 0.0f, 0.0f, 1.0f)
+            * GetScale(0.4f, 1.0f, 0.4f),
+            materials::plateMetallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::CYLINDER,
+            GetRotate(M_PIf / 2.0f, 0.0f, 0.0f, 1.0f)
+            * GetScale(0.4f, 1.0f, 0.4f),
+            materials::plateMetallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
+            GetTranslate(-1.0f, 0.0f, 0.0f)
+            * GetScale(0.4f, 0.4f, 0.4f),
+            materials::plateMetallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
+            GetTranslate(1.0f, 0.0f, 0.0f)
+            * GetScale(0.4f, 0.4f, 0.4f),
+            materials::plateMetallicGold)
+        );
+        primitives.push_back(Primitive(PRIMITIVE_TYPE::SPHERE,
+            GetTranslate(0.0f, sqrtf(3.0f), 0.0f)
+            * GetScale(0.4f, 0.4f, 0.4f),
+            materials::plateMetallicGold)
+        );
+        triangle0 = m_factory.CreateCustom(primitives, GetTranslate(0.0f, -1.5f, 0.0f));
+    }
+    AddObject(triangle0);
+
+    // Mirroirs
+    std::pair<std::shared_ptr<Shape>, int> mirror0 = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 0.0f, -5.0f) * GetRotate(M_PIf / 2.0f, 1.0f, 0.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f), 
+        materials::softMirrorsMirror0
+    );
+    AddObject(mirror0);
+
+    std::pair<std::shared_ptr<Shape>, int> mirror1 = m_factory.CreateRectangle(
+        GetRotate(M_PIf / 4.0f, 0.0f, 1.0f, 0.0f) * mirror0.first->GetPrimitives()[0].GetModelMatrix(),
+        materials::softMirrorsMirror1
+    );
+    AddObject(mirror1);
+
+    std::pair<std::shared_ptr<Shape>, int> mirror2 = m_factory.CreateRectangle(
+        GetRotate(M_PIf / 2.0f, 0.0f, 1.0f, 0.0f) * mirror0.first->GetPrimitives()[0].GetModelMatrix(),
+        materials::softMirrorsMirror2
+    );
+    AddObject(mirror2);
+
+    std::pair<std::shared_ptr<Shape>, int> mirror3 = m_factory.CreateRectangle(
+        GetRotate(3.0f * M_PIf / 4.0f, 0.0f, 1.0f, 0.0f) * mirror0.first->GetPrimitives()[0].GetModelMatrix(),
+        materials::softMirrorsMirror3
+    );
+    AddObject(mirror3);
+
+    std::pair<std::shared_ptr<Shape>, int> mirror4 = m_factory.CreateRectangle(
+        GetRotate(M_PIf, 0.0f, 1.0f, 0.0f) * mirror0.first->GetPrimitives()[0].GetModelMatrix(),
+        materials::softMirrorsMirror4
+    );
+    AddObject(mirror4);
+
+    std::pair<std::shared_ptr<Shape>, int> mirror5 = m_factory.CreateRectangle(
+        GetRotate(5.0f * M_PIf / 4.0f, 0.0f, 1.0f, 0.0f) * mirror0.first->GetPrimitives()[0].GetModelMatrix(),
+        materials::softMirrorsMirror5
+    );
+    AddObject(mirror5);
+
+    std::pair<std::shared_ptr<Shape>, int> mirror6 = m_factory.CreateRectangle(
+        GetRotate(3.0f * M_PIf / 2.0f, 0.0f, 1.0f, 0.0f) * mirror0.first->GetPrimitives()[0].GetModelMatrix(),
+        materials::softMirrorsMirror6
+    );
+    AddObject(mirror6);
+
+    std::pair<std::shared_ptr<Shape>, int> mirror7 = m_factory.CreateRectangle(
+        GetRotate(7.0f * M_PIf / 4.0f, 0.0f, 1.0f, 0.0f) * mirror0.first->GetPrimitives()[0].GetModelMatrix(),
+        materials::softMirrorsMirror7
+    );
+    AddObject(mirror7);
+
+    // Plancher cirulaire
+    std::pair<std::shared_ptr<Shape>, int> ground = m_factory.CreateDisk(
+        GetTranslate(0.0f, -2.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f),
+        materials::platePurple
+    );
+    AddObject(ground);
+    // Setup des lumieres
+    std::pair<std::shared_ptr<Shape>, int> lightObj = m_factory.CreateRectangle(
+        GetTranslate(0.0f, 6.0f, 0.0f) * GetRotate(M_PIf, 1.0f, 0.0f, 0.0f) * GetScale(4.0f, 1.0f, 4.0f),
+        materials::cornellLight
+    );
+
+    Primitive primitive = lightObj.first->GetPrimitives()[0];
+    SurfaceLight light = SurfaceLight(primitive.GetType(), primitive.GetModelMatrix(), primitive.GetMaterial().GetLe(), 0.0f);
+
+    AddObject(lightObj);
+    m_surfaceLights.push_back(light);
+}
+
 void Scene::CreateFunPlate()
 {
     // custom shape
@@ -328,6 +438,9 @@ void Scene::SetupObjects()
     case SceneModel::PLATE:
         CreateFunPlate();
         break;
+    case SceneModel::SOFT_MIRRORS:
+        CreateSoftMirrors();
+        break;
     }
 }
 
@@ -335,7 +448,7 @@ void Scene::SetupCamera()
 {
     m_backgroundColor = { 0.0, 0.0, 0.0 };
     m_camera.reset(new sutil::Camera(
-            { 0.0f, 3.0f, 14.0f }, // Position de l'oeil
+            { 0.0f, 0.0f, 14.0f }, // Position de l'oeil
             { 0.0f, 0.0f, 0.0f }, // Point au centre du regard
             { 0.0f, 1.0f, 0.0f }, // Vecteur haut
             60.0f, // Field of view
