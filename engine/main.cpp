@@ -41,7 +41,12 @@ void printUsageAndExit( const char* argv0 )
     std::cerr << "         --help | -h                           Print this usage message\n";
     std::cerr << "         --dim=<width>x<height>                Set image dimensions; defaults to 512x384\n";
     std::cerr << "         --mode=distributed OR path            Set render mode to distributed ray tracing or path tracing\n";
-    std::cerr << "         --scene=cornell OR plateau OR slide   Select a scene to render\n";
+    std::cerr << "         --scene=<scene>                       Select a scene to render\n";
+    std::cerr << "           Available scenes:\n";
+    std::cerr << "             plateau\n";
+    std::cerr << "             slide\n";
+    std::cerr << "             cornell\n";
+    std::cerr << "             mirror_spheres\n";
     std::cerr << "         --sample=<sample>                     Set the number of sample*sample of rays lunched per pixel; default is 1\n";
     std::cerr << "         --useAmbient                          Specify to use an ambient coefficient for global illumination\n";
     exit( 1 );
@@ -103,6 +108,10 @@ int main( int argc, char* argv[] )
             else if (mode_arg == "slide")
             {
                 sceneModel = engine::host::SceneModel::SLIDE;
+            }
+            else if (mode_arg == "mirror_spheres")
+            {
+                sceneModel = engine::host::SceneModel::MIRROR_SPHERES;
             }
             else
             {
