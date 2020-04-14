@@ -109,15 +109,21 @@ int main( int argc, char* argv[] )
             {
                 sceneModel = engine::host::SceneModel::SLIDE;
             }
-<<<<<<< HEAD
-            else if (mode_arg == "filip")
+            else if (mode_arg == "window")
             {
-                sceneModel = engine::host::SceneModel::FILIP;
-=======
+                sceneModel = engine::host::SceneModel::WINDOW;
+            }
+            else if (mode_arg == "balls")
+            {
+                sceneModel = engine::host::SceneModel::BALLS;
+            }
+            else if (mode_arg == "checkered")
+            {
+                sceneModel = engine::host::SceneModel::CHECKERED;
+            }
             else if (mode_arg == "mirror_spheres")
             {
                 sceneModel = engine::host::SceneModel::MIRROR_SPHERES;
->>>>>>> 8b8606278be3b1d29ff31e0ffa50baaa63cfb2f5
             }
             else
             {

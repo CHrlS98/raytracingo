@@ -183,9 +183,26 @@ const BasicMaterial cornellLight(
     1.0f
 );
 
-const BasicMaterial FilipLight(
+/// Lumiere eclairant le damier
+const BasicMaterial CheckeredLight(
     glm::vec3(0.0f),
-    glm::vec3(0.0f, 0.0f, 0.0f),
+    glm::vec3(0.0f),
+    glm::vec3(12.0f),
+    1.0f
+);
+
+/// Lumiere eclairant l'horde de spheres
+const BasicMaterial BallsLight(
+    glm::vec3(0.0f),
+    glm::vec3(0.0f),
+    glm::vec3(12.0f),
+    1.0f
+);
+
+/// Lumiere simulant l'eclairage d'une fenetre
+const BasicMaterial WindowLight(
+    glm::vec3(0.0f),
+    glm::vec3(0.0f),
     glm::vec3(12.0f),
     1.0f
 );

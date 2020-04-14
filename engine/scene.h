@@ -21,6 +21,9 @@ enum class SceneModel
     SLIDE,
     CORNELL,
     PLATE,
+    WINDOW,
+    BALLS,
+    CHECKERED,
     MIRROR_SPHERES
 };
 
@@ -105,8 +108,8 @@ private:
     /// Creer la scene SLIDE
     void CreateSlide();
 
-    /// Creer la scene FILIP
-    void CreateFilip();
+    /// Creer la scene WINDOW
+    void CreateWindowScene();
 
     /// Creer la scene CHECKERED
     void CreateCheckeredFloor();
