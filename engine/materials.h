@@ -249,6 +249,39 @@ const BasicMaterial softMirrorsMirror7(
     100.0f
 );
 
+// Diferents materiaux
+
+/// Lumiere eclairant le damier
+const BasicMaterial CheckeredLight(
+    glm::vec3(0.0f),
+    glm::vec3(0.0f),
+    glm::vec3(12.0f),
+    1.0f
+);
+
+/// Lumiere eclairant l'horde de spheres
+const BasicMaterial BallsLight(
+    glm::vec3(0.0f),
+    glm::vec3(0.0f),
+    glm::vec3(12.0f),
+    1.0f
+);
+
+/// Lumiere simulant l'eclairage d'une fenetre
+const BasicMaterial WindowLight(
+    glm::vec3(0.0f),
+    glm::vec3(0.0f),
+    glm::vec3(12.0f),
+    1.0f
+);
+
+const BasicMaterial windowWhite(
+    glm::vec3(0.9f, 0.9f, 0.9f),
+    glm::vec3(0.5f, 0.5f, 0.5f),
+    glm::vec3(0.0f),
+    100.0f
+);
+
 } // namespace materials
 } // namespace host
 } // namespace engine

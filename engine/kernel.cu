@@ -42,7 +42,7 @@ extern "C" {
     __constant__ Params params;
 }
 
-
+/// Fonction qui s'occupe de lancer un rayon, selon une origine et une direction
 static __forceinline__ __device__ void trace(
     OptixTraversableHandle handle,
     float3 ray_origin,
@@ -78,7 +78,7 @@ static __forceinline__ __device__ void trace(
     prd->z = int_as_float(p2);
 }
 
-
+/// Fonction qui enregistre les valeurs RBG du payload courant
 static __forceinline__ __device__ void setPayload(float3 p)
 {
     optixSetPayload_0(float_as_int(p.x));
@@ -86,6 +86,7 @@ static __forceinline__ __device__ void setPayload(float3 p)
     optixSetPayload_2(float_as_int(p.z));
 }
 
+/// Fonction qui retourne un couleur RBG [0, 255] à partir d'une couleur RBG [0, 1]
 __forceinline__ __device__ uchar4 make_color(const float3&  c)
 {
     return make_uchar4(
@@ -96,6 +97,90 @@ __forceinline__ __device__ uchar4 make_color(const float3&  c)
     );
 }
 
+/// Fonction qui retroune une direction de rayon se trouvant sur une hemisphere du cote de la normale de la surface d'origine
+static __forceinline__ __device__ float3 GetRayOnHemisphere(const float3& normal, const float3& direction, float coefficient, unsigned int& seed)
+{
+    float3 ray;
+    do
+    {
+        float r1 = rnd(seed);
+        float r2 = rnd(seed);
+
+        float phi = 2.f * M_PIf * r1;
+        float theta = acosf(powf((1.f - r2), 1.f / (coefficient + 1.f)));
+
+        // On cree un repere autour du vecteur direction
+        const float3 Yaxis = normalize(direction);
+        const float3 Xaxis = normalize(make_float3(Yaxis.y - Yaxis.z, -Yaxis.x, Yaxis.x)); // x est orthogonal a y
+        const float3 Zaxis = cross(Yaxis, Xaxis); // z est orthogonal a x et y et est normalise
+
+        // On reexprime le rayon emis dans ce nouveau repere
+        ray = sin(theta) * cos(phi) * Xaxis + cos(theta) * Yaxis - sin(theta) * sin(phi) * Zaxis;
+    } while (dot(normal, ray) < 0.f);
+
+    return ray;
+}
+
+/// Fonction qui transforme un rayon avec la matrice de transformation inverse d'un objet
+static __forceinline__ __device__ void TransformRay(const sutil::Matrix4x4& invModelMatrix, float3& origin, float3& direction)
+{
+    const float4 homogenousOrigin = make_float4(origin, 1.0f);
+    const float4 homogenousDir = make_float4(direction, 0.0f);
+
+    const float4 invTransformedDir = invModelMatrix * homogenousDir;
+    const float4 invTransformedOrigin = invModelMatrix * homogenousOrigin;
+
+    direction = make_float3(invTransformedDir.x, invTransformedDir.y, invTransformedDir.z);
+    origin = make_float3(invTransformedOrigin.x, invTransformedOrigin.y, invTransformedOrigin.z);
+}
+
+/// Fonction qui transforme la normale d'une surface selon la matrice de transformation inverse de la surface
+static __forceinline__ __device__ void TransformNormal(const sutil::Matrix4x4& invModelMatrix, float3& normal)
+{
+    const float4 homogenousN = make_float4(normal, 0.0f);
+    normal = make_float3(invModelMatrix.transpose() * homogenousN);
+}
+
+
+/// Operateur == pour float avec une certaine tolerance
+static __forceinline__ __device__ bool equalFloat(const float a, const float b, const float tolerance)
+{
+    return a > b - tolerance && a < b + tolerance;
+}
+
+/// Fonction qui retrourne le premier point de contract entre un rayon et un cylindre
+static __forceinline__ __device__ bool GetTMinCylinder(const float3& origin, const float3& direction, const float& t0, const float& t1, float& out_t)
+{
+    float t = 1e16f;
+    const float t_epsilon = 0.001f;
+    bool valid = false;
+    const float halfHeight = GENERIC_CYLINDER_HEIGHT / 2.0f;
+    if (t0 > t_epsilon)
+    {
+        // t0 est devant la camera et est la premiere intersection avec le rayon
+        const float3 p = origin + t0 * direction;
+        if (p.y > -halfHeight && p.y < halfHeight)
+        {
+            // t0 est une intersection valide
+            t = t0;
+            valid = true;
+        }
+    }
+    if (t1 > t_epsilon && t1 < t)
+    {
+        const float3 p = origin + t1 * direction;
+        if (p.y > -halfHeight && p.y < halfHeight)
+        {
+            // t0 est une intersection valide
+            t = t1;
+            valid = true;
+        }
+    }
+    out_t = t;
+    return valid;
+}
+
+/// Fonction qui lance un/des rayon(s) pour un pixel à partir de la camera et qui place le resultat final dans un tampon
 extern "C" __global__ void __raygen__rg()
 {
     // lookup our location within the launch grid
@@ -159,90 +244,6 @@ extern "C" __global__ void __raygen__rg()
     }
     params.accum_buffer[pxlIndex] = make_float4(currentColor, 1.0f);
     params.image[pxlIndex] = make_color(currentColor);
-}
-
-
-extern "C" __global__ void __miss__ms()
-{
-    MissData* rt_data = reinterpret_cast<MissData*>(optixGetSbtDataPointer());
-    setPayload(make_float3(rt_data->r, rt_data->g, rt_data->b));
-}
-
-static __forceinline__ __device__ float3 GetRayOnHemisphere(const float3& normal, const float3& direction, float coefficient, unsigned int& seed)
-{
-    float3 ray;
-    do
-    {
-        float r1 = rnd(seed);
-        float r2 = rnd(seed);
-
-        float phi = 2.f * M_PIf * r1;
-        float theta = acosf(powf((1.f - r2), 1.f/(coefficient + 1.f)));
-
-        // On cree un repere autour du vecteur direction
-        const float3 Yaxis = normalize(direction);
-        const float3 Xaxis = normalize(make_float3(Yaxis.y - Yaxis.z, -Yaxis.x, Yaxis.x)); // x est orthogonal a y
-        const float3 Zaxis = cross(Yaxis, Xaxis); // z est orthogonal a x et y et est normalise
-
-        // On reexprime le rayon emis dans ce nouveau repere
-        ray = sin(theta) * cos(phi) * Xaxis + cos(theta) * Yaxis - sin(theta) * sin(phi) * Zaxis;
-    } while (dot(normal, ray) < 0.f);
-
-    return ray;
-}
-
-static __forceinline__ __device__ void TransformRay(const sutil::Matrix4x4& invModelMatrix, float3& origin, float3& direction)
-{
-    const float4 homogenousOrigin = make_float4(origin, 1.0f);
-    const float4 homogenousDir = make_float4(direction, 0.0f);
-
-    const float4 invTransformedDir = invModelMatrix * homogenousDir;
-    const float4 invTransformedOrigin = invModelMatrix * homogenousOrigin;
-
-    direction = make_float3(invTransformedDir.x, invTransformedDir.y, invTransformedDir.z);
-    origin = make_float3(invTransformedOrigin.x, invTransformedOrigin.y, invTransformedOrigin.z);
-}
-
-static __forceinline__ __device__ void TransformNormal(const sutil::Matrix4x4& invModelMatrix, float3& normal)
-{
-    const float4 homogenousN = make_float4(normal, 0.0f);
-    normal = make_float3(invModelMatrix.transpose() * homogenousN);
-}
-
-static __forceinline__ __device__ bool equalFloat(const float a, const float b, const float tolerance)
-{
-    return a > b - tolerance && a < b + tolerance;
-}
-
-static __forceinline__ __device__ bool GetTMinCylinder(const float3& origin, const float3& direction, const float& t0, const float& t1, float& out_t)
-{
-    float t = 1e16f;
-    const float t_epsilon = 0.001f;
-    bool valid = false;
-    const float halfHeight = GENERIC_CYLINDER_HEIGHT / 2.0f;
-    if (t0 > t_epsilon)
-    {
-        // t0 est devant la camera et est la premiere intersection avec le rayon
-        const float3 p = origin + t0 * direction;
-        if (p.y > -halfHeight && p.y < halfHeight)
-        {
-            // t0 est une intersection valide
-            t = t0;
-            valid = true;
-        }
-    }
-    if (t1 > t_epsilon && t1 < t)
-    {
-        const float3 p = origin + t1 * direction;
-        if (p.y > -halfHeight && p.y < halfHeight)
-        {
-            // t0 est une intersection valide
-            t = t1;
-            valid = true;
-        }
-    }
-    out_t = t;
-    return valid;
 }
 
 /// Teste si un rayon intersecte avec la sphere
@@ -414,6 +415,14 @@ extern "C" __global__ void __intersection__rectangle()
     }
 }
 
+/// Fonction appelee lors qu'un rayon n'atteint pas d'objet
+extern "C" __global__ void __miss__ms()
+{
+    MissData* rt_data = reinterpret_cast<MissData*>(optixGetSbtDataPointer());
+    setPayload(make_float3(rt_data->r, rt_data->g, rt_data->b));
+}
+
+/// Fonction qui determine la radiance d'un point intersecter par un rayon
 extern "C" __global__ void __closesthit__ch()
 {
     float3 N = normalize(make_float3(
@@ -474,7 +483,7 @@ extern "C" __global__ void __closesthit__ch()
             return;
         }
         // Choix d'une lumiere vers laquelle envoyer un rayon
-        const int l = rnd(seed)* (params.nbSurfaceLights - 1);
+        const int l = rnd(seed) * (params.nbSurfaceLights - 1);
         const float3 lightNormal = params.surfaceLights[l].normal;
         const float3 v1 = params.surfaceLights[l].v1;
         const float3 v2 = params.surfaceLights[l].v2;
@@ -526,6 +535,7 @@ extern "C" __global__ void __closesthit__ch()
     }
 }
 
+/// Fonction appelee lorsque un rayon entre un point et une source lumieuse est bloqué
 extern "C" __global__ void __closesthit__full_occlusion()
 {
     const HitGroupData* hgData = reinterpret_cast<HitGroupData*>(optixGetSbtDataPointer());
