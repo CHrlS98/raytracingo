@@ -586,7 +586,7 @@ void Scene::CreateBalls()
     unsigned int seed = tea<16>(12, 1234567);
     std::pair<std::shared_ptr<Shape>, int> bottom = m_factory.CreateRectangle(
         GetTranslate(0.0f, -4.0f, 0.0f) * GetScale(16.0f, 1.0f, 16.0f),
-        materials::mirrorSpheresBlackMirror
+        materials::windowWhite
     );
     AddObject(bottom);
     std::vector<BasicMaterial> mat;
@@ -594,7 +594,7 @@ void Scene::CreateBalls()
     mat.push_back(materials::plateCyan);
     mat.push_back(materials::platePurple);
     mat.push_back(materials::platePrettyGreen);
-    mat.push_back(materials::mirrorSpheresBlackMirror);
+    mat.push_back(materials::windowWhite);
     for (int i = 0; i < 16; i++)
     {
         for (int j = 0; j < 16; j++)
@@ -623,7 +623,7 @@ void Scene::CreateBalls()
     SurfaceLight light = SurfaceLight(primitive.GetType(), primitive.GetModelMatrix(), { 1.0f, 1.0f, 1.0f }, 0.01f);
 
     m_surfaceLights.push_back(light);
-    //AddObject(lightObj);
+    AddObject(lightObj);
 }
 
 void Scene::SetupObjects()
